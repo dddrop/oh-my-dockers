@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-latest}
+    container_name: ${PROJECT_NAME}-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-${PROJECT_NAME}}
+    volumes:
+      - ${PROJECT_NAME}_postgres_data:/var/lib/postgresql/data
+      - ${INIT_DIR:-../init}/postgres:/docker-entrypoint-initdb.d
+    networks:
+      - ${PROJECT_NETWORK}
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}", "-d", "${POSTGRES_DB:-${PROJECT_NAME}}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  ${PROJECT_NAME}_postgres_data:
+
+networks:
+  ${PROJECT_NETWORK}:
+    external: true
+  caddy-net:
+    external: true
+

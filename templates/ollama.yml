@@ -1,0 +1,26 @@
+services:
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
+    container_name: ${PROJECT_NAME}-ollama
+    restart: unless-stopped
+    volumes:
+      - ${PROJECT_NAME}_ollama_data:/root/.ollama
+    networks:
+      - ${PROJECT_NETWORK}
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  ${PROJECT_NAME}_ollama_data:
+
+networks:
+  ${PROJECT_NETWORK}:
+    external: true
+  caddy-net:
+    external: true
+

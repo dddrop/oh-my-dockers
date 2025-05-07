@@ -1,0 +1,31 @@
+services:
+  caddy:
+    image: caddy:latest
+    container_name: oh-my-dockers-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/certs:ro
+      - ./caddy/projects:/etc/caddy/projects:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - caddy-net
+    environment:
+      - CADDY_ADMIN=0.0.0.0:2019
+    labels:
+      - "com.oh-my-dockers.service=caddy"
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  caddy-net:
+    name: caddy-net
+    external: true
+

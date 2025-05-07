@@ -1,0 +1,31 @@
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:${SURREALDB_VERSION:-latest}
+    container_name: ${PROJECT_NAME}-surrealdb
+    restart: unless-stopped
+    user: "0:0"  # Run as root to avoid permission issues
+    command: start --log info --user ${SURREAL_USER:-root} --pass ${SURREAL_PASSWORD:-root} file:/data/database.db
+    environment:
+      - SURREAL_USER=${SURREAL_USER:-root}
+      - SURREAL_PASSWORD=${SURREAL_PASSWORD:-root}
+    volumes:
+      - ${PROJECT_NAME}_surrealdb_data:/data
+    networks:
+      - ${PROJECT_NETWORK}
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  ${PROJECT_NAME}_surrealdb_data:
+
+networks:
+  ${PROJECT_NETWORK}:
+    external: true
+  caddy-net:
+    external: true
+

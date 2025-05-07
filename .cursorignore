@@ -1,0 +1,23 @@
+# Rust build artifacts
+/target
+Cargo.lock
+
+# Generated files
+.generated/
+docker-compose.generated.yml
+
+# Environment files (sensitive)
+.env
+*.env
+!env.template
+!*.env.template
+
+# Certificates (sensitive)
+caddy/certs/*.key
+caddy/certs/ca.key
+
+# Docker volumes
+volumes/
+
+# Logs
+*.log

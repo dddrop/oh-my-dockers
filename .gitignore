@@ -1,0 +1,46 @@
+# Environment files
+.env
+*.env
+!env.template
+!.env.template
+
+# Certificates
+caddy/certs/*.crt
+caddy/certs/*.key
+caddy/certs/*.pem
+
+# Caddy generated files
+caddy/projects/*.caddy
+
+# Docker volumes
+volumes/
+
+# Generated files
+.generated/
+docker-compose.generated.yml
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Backup
+backup/
+*.tar.gz
+
+# Others
+old

@@ -1,0 +1,25 @@
+# Global Configuration for oh-my-dockers
+
+[global]
+# Caddy network name
+caddy_network = "caddy-net"
+
+# Directories
+cert_dir = "./caddy/certs"
+projects_dir = "./projects"
+templates_dir = "./templates"
+init_dir = "./init"
+caddy_projects_dir = "./caddy/projects"
+
+[defaults]
+# Default versions for services
+postgres_version = "latest"
+redis_version = "latest"
+surrealdb_version = "latest"
+chroma_version = "latest"
+ollama_version = "latest"
+n8n_version = "latest"
+
+# Default timezone
+timezone = "Asia/Tokyo"
+

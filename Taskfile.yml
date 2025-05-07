@@ -1,0 +1,244 @@
+version: '3'
+
+vars:
+  CERT_TOOL: cargo run --bin cert --
+  PROJECT_MANAGER: cargo run --bin project-manager --
+
+tasks:
+  # ============================================================================
+  # Certificate Management
+  # ============================================================================
+  
+  cert:install:
+    desc: Install mkcert and setup local CA
+    cmds:
+      - "{{.CERT_TOOL}} install-ca"
+  
+  cert:generate:
+    desc: "Generate certificate for a project (usage: task cert:generate PROJECT=daily)"
+    vars:
+      PROJECT: '{{.PROJECT | default "example"}}'
+      DOMAIN:
+        sh: yq eval '.project.domain' projects/{{.PROJECT}}.toml
+    cmds:
+      - "{{.CERT_TOOL}} generate {{.DOMAIN}}"
+  
+  cert:list:
+    desc: List all generated certificates
+    cmds:
+      - "{{.CERT_TOOL}} list"
+  
+  cert:remove:
+    desc: "Remove certificate for a domain (usage: task cert:remove DOMAIN=example.local)"
+    vars:
+      DOMAIN: '{{.DOMAIN | default "example.local"}}'
+    cmds:
+      - "{{.CERT_TOOL}} remove {{.DOMAIN}}"
+
+  # ============================================================================
+  # Caddy Reverse Proxy
+  # ============================================================================
+  
+  caddy:up:
+    desc: Start Caddy reverse proxy
+    cmds:
+      - docker network create caddy-net || true
+      - docker compose -f docker-compose-caddy.yml up -d
+      - echo ""
+      - echo "✓ Caddy started"
+      - echo "  Admin API - http://localhost:2019"
+  
+  caddy:down:
+    desc: Stop Caddy reverse proxy
+    cmds:
+      - docker compose -f docker-compose-caddy.yml down
+  
+  caddy:reload:
+    desc: Reload Caddy configuration
+    cmds:
+      - "{{.PROJECT_MANAGER}} reload"
+  
+  caddy:logs:
+    desc: Show Caddy logs
+    cmds:
+      - docker compose -f docker-compose-caddy.yml logs -f
+
+  # ============================================================================
+  # Hosts Management
+  # ============================================================================
+  
+  hosts:add:
+    desc: "Add project domains to /etc/hosts (usage: task hosts:add PROJECT=daily)"
+    vars:
+      PROJECT: '{{.PROJECT | default "daily"}}'
+    cmds:
+      - cargo run --release --bin hosts -- add {{.PROJECT}}
+
+  hosts:remove:
+    desc: "Remove project domains from /etc/hosts (usage: task hosts:remove PROJECT=daily)"
+    vars:
+      PROJECT: '{{.PROJECT | default "daily"}}'
+    cmds:
+      - cargo run --release --bin hosts -- remove {{.PROJECT}}
+
+  hosts:list:
+    desc: List all oh-my-dockers managed hosts entries
+    cmds:
+      - cargo run --release --bin hosts -- list
+
+  hosts:clean:
+    desc: Clean all oh-my-dockers managed hosts entries
+    cmds:
+      - cargo run --release --bin hosts -- clean
+
+  # ============================================================================
+  # Project Management
+  # ============================================================================
+  
+  project:list:
+    desc: List all configured projects
+    cmds:
+      - "{{.PROJECT_MANAGER}} list"
+  
+  project:up:
+    desc: "Start a project (usage: task project:up PROJECT=daily)"
+    vars:
+      PROJECT: '{{.PROJECT | default "example"}}'
+    cmds:
+      - "{{.PROJECT_MANAGER}} up {{.PROJECT}}"
+  
+  project:down:
+    desc: "Stop a project (usage: task project:down PROJECT=daily)"
+    vars:
+      PROJECT: '{{.PROJECT | default "example"}}'
+    cmds:
+      - "{{.PROJECT_MANAGER}} down {{.PROJECT}}"
+  
+  project:logs:
+    desc: "Show logs for a project (usage: task project:logs PROJECT=daily)"
+    vars:
+      PROJECT: '{{.PROJECT | default "example"}}'
+    cmds:
+      - docker compose -f .generated/docker-compose-{{.PROJECT}}.yml logs -f
+
+  project:restart:
+    desc: "Restart a project (usage: task project:restart PROJECT=daily)"
+    vars:
+      PROJECT: '{{.PROJECT | default "example"}}'
+    cmds:
+      - task: project:down
+        vars: {PROJECT: "{{.PROJECT}}"}
+      - task: project:up
+        vars: {PROJECT: "{{.PROJECT}}"}
+
+  # ============================================================================
+  # Quick Setup Commands
+  # ============================================================================
+  
+  setup:
+    desc: "Complete setup (install mkcert, generate certificates, start Caddy)"
+    cmds:
+      - task: cert:install
+      - task: cert:generate
+        vars: {PROJECT: daily}
+      - task: caddy:up
+      - task: hosts:add
+        vars: {PROJECT: daily}
+      - echo ""
+      - echo "✓ Setup complete!"
+      - echo ""
+      - echo "Next steps:"
+      - echo "  1. Copy environment file (if not exists):"
+      - echo "     cp projects/daily/.env.template projects/daily/.env"
+      - echo ""
+      - echo "  2. Start daily project:"
+      - echo "     task start"
+  
+  start:
+    desc: Start daily project
+    cmds:
+      - task: caddy:up
+      - task: project:up
+        vars: {PROJECT: daily}
+  
+  stop:
+    desc: Stop daily project
+    cmds:
+      - task: project:down
+        vars: {PROJECT: daily}
+
+  # ============================================================================
+  # Build Commands
+  # ============================================================================
+  
+  build:
+    desc: Build Rust tools
+    cmds:
+      - cargo build --release
+      - echo ""
+      - echo "✓ Tools built successfully"
+      - echo "  cert - target/release/cert"
+      - echo "  project-manager - target/release/project-manager"
+  
+  install:
+    desc: Install Rust tools to system
+    deps: [build]
+    cmds:
+      - cargo install --path tools/cert
+      - cargo install --path tools/project-manager
+      - echo ""
+      - echo "✓ Tools installed to ~/.cargo/bin"
+
+  # ============================================================================
+  # Utility Commands
+  # ============================================================================
+  
+  clean:
+    desc: Clean generated files and build artifacts
+    cmds:
+      - rm -rf .generated/
+      - rm -rf caddy/projects/*.caddy
+      - cargo clean
+      - echo "✓ Cleaned generated files and build artifacts"
+  
+  reset:
+    desc: "Reset environment (stops all services, removes volumes and networks)"
+    cmds:
+      - echo "WARNING - This will delete all data in Docker volumes!"
+      - echo "Press Ctrl+C to cancel, or wait 5 seconds to continue..."
+      - sleep 5
+      - echo ""
+      - echo "Stopping all oh-my-dockers services..."
+      - docker ps -a --filter "label=com.docker.compose.project=oh-my-dockers" --format "{{`{{.Names}}`}}" | xargs -r docker stop
+      - docker ps -a --filter "label=com.docker.compose.project=oh-my-dockers" --format "{{`{{.Names}}`}}" | xargs -r docker rm
+      - echo ""
+      - echo "Removing Caddy..."
+      - docker compose -f docker-compose-caddy.yml down || true
+      - echo ""
+      - echo "Removing volumes..."
+      - docker volume ls --filter "name=oh-my-dockers_" --format "{{`{{.Name}}`}}" | xargs -r docker volume rm
+      - docker volume ls --filter "name=daily_" --format "{{`{{.Name}}`}}" | xargs -r docker volume rm
+      - echo ""
+      - echo "Removing networks..."
+      - docker network rm caddy-net || true
+      - docker network rm daily-net || true
+      - echo ""
+      - echo "Cleaning generated files..."
+      - rm -rf .generated/
+      - rm -rf caddy/projects/*.caddy
+      - echo ""
+      - echo "Environment reset complete!"
+      - echo ""
+      - echo "To start fresh, run - task setup && task start"
+  
+  check:
+    desc: Check Rust code and dependencies
+    cmds:
+      - cargo check
+      - cargo clippy -- -D warnings
+  
+  fmt:
+    desc: Format Rust code
+    cmds:
+      - cargo +nightly fmt
+

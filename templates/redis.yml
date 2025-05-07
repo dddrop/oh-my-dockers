@@ -1,0 +1,32 @@
+services:
+  redis:
+    image: redis:${REDIS_VERSION:-latest}
+    container_name: ${PROJECT_NAME}-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis}
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis}
+    volumes:
+      - ${PROJECT_NAME}_redis_data:/data
+      - ${INIT_DIR:-./init}/redis:/usr/local/etc/redis
+    networks:
+      - ${PROJECT_NETWORK}
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  ${PROJECT_NAME}_redis_data:
+
+networks:
+  ${PROJECT_NETWORK}:
+    external: true
+  caddy-net:
+    external: true
+

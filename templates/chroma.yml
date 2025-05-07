@@ -1,0 +1,33 @@
+services:
+  chroma:
+    image: chromadb/chroma:${CHROMA_VERSION:-latest}
+    container_name: ${PROJECT_NAME}-chroma
+    restart: unless-stopped
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=${CHROMA_TELEMETRY:-FALSE}
+      - CHROMA_SERVER_AUTH_CREDENTIALS=${CHROMA_SERVER_AUTH_CREDENTIALS:-admin:admin}
+      - CHROMA_SERVER_AUTH_PROVIDER=${CHROMA_SERVER_AUTH_PROVIDER:-chromadb.auth.basic_authn.BasicAuthenticationServerProvider}
+    volumes:
+      - ${PROJECT_NAME}_chroma_data:/chroma/chroma
+      - ${INIT_DIR:-./init}/chroma:/chroma/init
+    networks:
+      - ${PROJECT_NETWORK}
+      - caddy-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  ${PROJECT_NAME}_chroma_data:
+
+networks:
+  ${PROJECT_NETWORK}:
+    external: true
+  caddy-net:
+    external: true
+
