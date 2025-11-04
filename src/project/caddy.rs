@@ -22,8 +22,6 @@ pub fn generate_caddy_config(project: &str, config: &ProjectConfig) -> Result<()
 
     if config.project.mode == "managed" && config.caddy.auto_subdomains {
         // Generate subdomains for enabled services (HTTP only)
-        // Note: Caddy connects to container internal ports, which are not affected by port_offset
-        // Port offset only affects host port mappings, not container internal ports
         for (service_name, service_config) in &config.services {
             if !service_config.enabled {
                 continue;
@@ -36,8 +34,11 @@ pub fn generate_caddy_config(project: &str, config: &ProjectConfig) -> Result<()
 
             let subdomain = service_name;
             let target = format!("{}-{}", config.project.name, service_name);
-            // Get container internal port (not affected by port_offset)
-            let port = get_service_port(service_name);
+            // Get container internal port for the service
+            // Note: For HTTP services, this returns the container internal port which is NOT affected by port_offset.
+            // Port offset only affects host port mappings in docker-compose (e.g., "${POSTGRES_PORT:-5432}:5432"),
+            // but Caddy connects to containers within the Docker network using internal ports, which remain constant.
+            let port = get_service_port(service_name, config.project.port_offset)?;
 
             let cert_name = config.project.domain.replace('.', "_");
             caddy_config.push_str(&format!(
@@ -89,21 +90,32 @@ fn is_http_service(service: &str) -> bool {
 
 /// Get the container internal port for a service
 /// 
-/// Note: This returns the container internal port, which is NOT affected by port_offset.
-/// Port offset only affects host port mappings (e.g., "${POSTGRES_PORT:-5432}:5432"),
-/// but Caddy connects to containers within the Docker network using internal ports.
+/// This function calculates the port used by Caddy to connect to services.
+/// For HTTP services (n8n, chroma, surrealdb, ollama), this returns the container internal port,
+/// which is NOT affected by port_offset because these services don't have port mappings.
 /// 
-/// For HTTP services used by Caddy (n8n, chroma, surrealdb, ollama), these ports are
-/// always the same regardless of port_offset configuration.
-fn get_service_port(service: &str) -> &'static str {
-    match service {
-        "postgres" => "5432",
-        "redis" => "6379",
-        "surrealdb" => "8000",
-        "chroma" => "8000",
-        "ollama" => "11434",
-        "n8n" => "5678",
-        _ => "8080",
-    }
+/// Port offset only affects host port mappings for database services (postgres, redis)
+/// in docker-compose (e.g., "${POSTGRES_PORT:-5432}:5432"), but Caddy connects to containers
+/// within the Docker network using internal ports, which remain constant.
+/// 
+/// This function accepts port_offset for consistency with compose.rs, but for HTTP services
+/// that Caddy proxies, the offset is not applied since they use fixed container internal ports.
+fn get_service_port(service: &str, _port_offset: u16) -> Result<String> {
+    // Base container internal ports for services
+    // These are the ports exposed by containers within the Docker network
+    let base_port = match service {
+        "postgres" => 5432u32,
+        "redis" => 6379u32,
+        "surrealdb" => 8000u32,
+        "chroma" => 8000u32,
+        "ollama" => 11434u32,
+        "n8n" => 5678u32,
+        _ => 8080u32,
+    };
+
+    // For HTTP services that Caddy proxies, we use container internal ports which are not offset.
+    // Port offset only affects host port mappings, not container internal ports.
+    // This is consistent with how Docker networking works: containers communicate via internal ports.
+    Ok(base_port.to_string())
 }
 
