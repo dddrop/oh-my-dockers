@@ -168,7 +168,8 @@ fn parse_template(content: &str) -> TemplateContent {
         let trimmed = line.trim();
 
         // Detect top-level section headers (no indentation)
-        if !line.starts_with(' ') && !line.starts_with('\t') {
+        // Skip empty lines to avoid resetting section flags
+        if !trimmed.is_empty() && !line.starts_with(' ') && !line.starts_with('\t') {
             if trimmed == "services:" {
                 _in_services_section = true;
                 _in_volumes_section = false;
