@@ -1,0 +1,23 @@
+# Example omd.toml Configuration
+# This file shows all available configuration options
+
+[project]
+# Project name (used for container naming)
+name = "my-project"
+
+# Domain for this project
+domain = "my-project.local"
+
+[network]
+# Docker network name for this project
+name = "my-project-net"
+
+# Optional: Custom Caddy routes
+# If not specified, routes are auto-generated from docker-compose.yml
+[caddy.routes]
+# Format: subdomain = "container_name:port"
+# Examples:
+api = "backend:3000"
+app = "frontend:80"
+admin = "admin-panel:8080"
+
