@@ -31,6 +31,7 @@ enum Commands {
     /// Display port mappings
     Ports {
         /// Show port mappings for a specific network
+        #[arg(value_name = "NETWORK")]
         network: Option<String>,
     },
     /// Manage projects
