@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod config;
+mod migrate;
 mod network;
 mod ports;
 mod project;
@@ -37,6 +38,8 @@ enum Commands {
         #[command(subcommand)]
         subcommand: ProjectCommands,
     },
+    /// Migrate existing configuration to new config directory
+    Migrate,
 }
 
 #[derive(Subcommand)]
@@ -132,6 +135,9 @@ fn main() -> Result<()> {
                 project::down(&project)?;
             }
         },
+        Commands::Migrate => {
+            migrate::migrate_from_current_dir()?;
+        }
     }
 
     Ok(())
