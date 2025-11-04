@@ -20,6 +20,50 @@ pub fn is_running() -> bool {
     }
 }
 
+/// Check if Caddy container exists (running or stopped)
+fn container_exists() -> bool {
+    let output = Command::new("docker")
+        .args(&["ps", "-a", "--filter", "name=oh-my-dockers-caddy", "--format", "{{.Names}}"])
+        .output();
+
+    if let Ok(output) = output {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        stdout.contains("oh-my-dockers-caddy")
+    } else {
+        false
+    }
+}
+
+/// Remove existing Caddy container
+fn remove_container() -> Result<()> {
+    println!("{} Removing existing container...", "ℹ".blue());
+    let status = Command::new("docker")
+        .args(&["rm", "-f", "oh-my-dockers-caddy"])
+        .status()
+        .context("Failed to remove container")?;
+
+    if !status.success() {
+        anyhow::bail!("Failed to remove existing container");
+    }
+
+    Ok(())
+}
+
+/// Start existing stopped container
+fn start_existing_container() -> Result<()> {
+    println!("{} Starting existing container...", "ℹ".blue());
+    let status = Command::new("docker")
+        .args(&["start", "oh-my-dockers-caddy"])
+        .status()
+        .context("Failed to start container")?;
+
+    if !status.success() {
+        anyhow::bail!("Failed to start existing container");
+    }
+
+    Ok(())
+}
+
 /// Ensure Caddyfile exists in config directory
 fn ensure_caddyfile() -> Result<()> {
     let config_dir = get_config_dir()?;
@@ -77,6 +121,51 @@ pub fn start() -> Result<()> {
     if is_running() {
         println!("{} Caddy is already running", "ℹ".blue());
         return Ok(());
+    }
+
+    // Check if stopped container exists
+    if container_exists() {
+        println!();
+        println!("{} Found existing Caddy container (stopped)", "⚠".yellow());
+        println!();
+        println!("Choose an option:");
+        println!("  1. {} - Start the existing container", "Start".green());
+        println!("  2. {} - Remove and recreate container", "Reset".yellow());
+        println!();
+        print!("Enter choice (1 or 2): ");
+        
+        use std::io::{self, Write};
+        io::stdout().flush()?;
+        
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        
+        match input.trim() {
+            "1" => {
+                start_existing_container()?;
+                
+                // Wait a bit for Caddy to start
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                
+                if is_running() {
+                    println!("{}", "✓ Caddy started successfully".green());
+                    println!();
+                    println!("Caddy Admin API: http://localhost:2019");
+                    println!("View logs: docker logs oh-my-dockers-caddy -f");
+                } else {
+                    println!("{}", "⚠ Caddy may have failed to start".yellow());
+                    println!("Check logs: docker logs oh-my-dockers-caddy");
+                }
+                return Ok(());
+            }
+            "2" => {
+                remove_container()?;
+                // Continue to create new container below
+            }
+            _ => {
+                anyhow::bail!("Invalid choice. Please enter 1 or 2.");
+            }
+        }
     }
 
     println!("{}", "Starting Caddy reverse proxy...".blue());
