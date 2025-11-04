@@ -41,11 +41,35 @@ pub fn generate_compose_file(
     all_env.insert("INIT_DIR".to_string(), init_dir);
 
     // Add port offset for database services
+    // Validate that offset doesn't cause integer overflow or exceed max port (65535)
     let offset = config.project.port_offset;
-    all_env.insert("POSTGRES_PORT".to_string(), (5432 + offset).to_string());
-    all_env.insert("REDIS_PORT".to_string(), (6379 + offset).to_string());
-    all_env.insert("MYSQL_PORT".to_string(), (3306 + offset).to_string());
-    all_env.insert("MONGODB_PORT".to_string(), (27017 + offset).to_string());
+    
+    // Base ports: PostgreSQL=5432, Redis=6379, MySQL=3306, MongoDB=27017
+    // Max port is 65535, so validate each calculation won't overflow or exceed max
+    let postgres_port = 5432u32
+        .checked_add(offset as u32)
+        .and_then(|p| if p <= 65535 { Some(p) } else { None })
+        .ok_or_else(|| anyhow::anyhow!("Port offset {} would cause overflow or exceed max port for PostgreSQL (5432 + {} > 65535)", offset, offset))?;
+    
+    let redis_port = 6379u32
+        .checked_add(offset as u32)
+        .and_then(|p| if p <= 65535 { Some(p) } else { None })
+        .ok_or_else(|| anyhow::anyhow!("Port offset {} would cause overflow or exceed max port for Redis (6379 + {} > 65535)", offset, offset))?;
+    
+    let mysql_port = 3306u32
+        .checked_add(offset as u32)
+        .and_then(|p| if p <= 65535 { Some(p) } else { None })
+        .ok_or_else(|| anyhow::anyhow!("Port offset {} would cause overflow or exceed max port for MySQL (3306 + {} > 65535)", offset, offset))?;
+    
+    let mongodb_port = 27017u32
+        .checked_add(offset as u32)
+        .and_then(|p| if p <= 65535 { Some(p) } else { None })
+        .ok_or_else(|| anyhow::anyhow!("Port offset {} would cause overflow or exceed max port for MongoDB (27017 + {} > 65535)", offset, offset))?;
+    
+    all_env.insert("POSTGRES_PORT".to_string(), postgres_port.to_string());
+    all_env.insert("REDIS_PORT".to_string(), redis_port.to_string());
+    all_env.insert("MYSQL_PORT".to_string(), mysql_port.to_string());
+    all_env.insert("MONGODB_PORT".to_string(), mongodb_port.to_string());
 
     // Add user-provided env vars
     for (k, v) in env_vars {
