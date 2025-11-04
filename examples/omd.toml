@@ -8,6 +8,11 @@ name = "my-project"
 # Domain for this project
 domain = "my-project.local"
 
+# Optional: Path to docker-compose file (relative to project directory)
+# Defaults to "docker-compose.yml" if not specified
+# compose_file = "docker/docker-compose.yml"
+# compose_file = "docker-compose.dev.yml"
+
 [network]
 # Docker network name for this project
 name = "my-project-net"

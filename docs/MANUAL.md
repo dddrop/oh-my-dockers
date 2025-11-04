@@ -223,6 +223,63 @@ The project registry (`~/.oh-my-dockers/registry.json`) tracks all registered pr
 
 ## Command Reference
 
+### omd caddy start
+
+Start the Caddy reverse proxy container.
+
+```bash
+omd caddy start
+```
+
+**Note:** Caddy is usually auto-started when you run `omd project up`. You only need to manually start it if you've stopped it or want to ensure it's running.
+
+### omd caddy stop
+
+Stop the Caddy container.
+
+```bash
+omd caddy stop
+```
+
+### omd caddy restart
+
+Restart the Caddy container.
+
+```bash
+omd caddy restart
+```
+
+### omd caddy status
+
+Show Caddy container status and connection information.
+
+```bash
+omd caddy status
+```
+
+**Example Output:**
+```
+Caddy Status:
+
+  Status: Running
+  Up 2 hours    0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+
+Admin API: http://localhost:2019
+Logs: docker logs oh-my-dockers-caddy -f
+```
+
+### omd caddy logs
+
+Show Caddy container logs.
+
+```bash
+# Show recent logs
+omd caddy logs
+
+# Follow logs in real-time
+omd caddy logs --follow
+```
+
 ### omd init
 
 Initialize `omd.toml` configuration in the current directory.
@@ -253,10 +310,11 @@ omd up
 2. Parses `docker-compose.yml` to extract ports and container names
 3. Checks for port conflicts with other registered projects
 4. Creates Docker networks if they don't exist
-5. Generates Caddy reverse proxy configuration
-6. Registers project in global registry
+5. **Automatically starts Caddy** if not running
+6. Generates Caddy reverse proxy configuration
+7. Registers project in global registry
 
-**Important**: This does NOT start containers. Run `docker compose up -d` separately.
+**Important**: This does NOT start your project containers. Run `docker compose up -d` separately.
 
 **Example Output:**
 
@@ -407,6 +465,11 @@ name = "my-project"
 # Domain for this project
 domain = "my-project.local"
 
+# Optional: Path to docker-compose file (relative to project directory)
+# Defaults to "docker-compose.yml" if not specified
+# compose_file = "docker/docker-compose.yml"
+# compose_file = "docker-compose.dev.yml"
+
 [network]
 # Docker network name for this project
 name = "my-project-net"
@@ -422,6 +485,7 @@ routes = {}
 
 - `name` (required): Project identifier, used in container naming
 - `domain` (required): Base domain for accessing services
+- `compose_file` (optional): Path to docker-compose file, relative to project directory. Defaults to `"docker-compose.yml"`
 - `path` (optional): Automatically filled by `omd up`
 
 **[network] Section:**

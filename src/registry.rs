@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
+use std::{collections::HashMap, fs, path::PathBuf};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -47,8 +45,7 @@ impl PortRegistry {
             return Ok(Self::new());
         }
 
-        let content = fs::read_to_string(&registry_path)
-            .context("Failed to read registry file")?;
+        let content = fs::read_to_string(&registry_path).context("Failed to read registry file")?;
 
         serde_json::from_str(&content).context("Failed to parse registry file")
     }
@@ -57,11 +54,9 @@ impl PortRegistry {
     pub fn save(&self) -> Result<()> {
         let registry_path = Self::get_registry_path()?;
 
-        let content = serde_json::to_string_pretty(self)
-            .context("Failed to serialize registry")?;
+        let content = serde_json::to_string_pretty(self).context("Failed to serialize registry")?;
 
-        fs::write(&registry_path, content)
-            .context("Failed to write registry file")?;
+        fs::write(&registry_path, content).context("Failed to write registry file")?;
 
         Ok(())
     }
@@ -86,11 +81,7 @@ impl PortRegistry {
 
     /// Check for port conflicts
     /// Returns a list of (conflicting_port, conflicting_project_name) tuples
-    pub fn check_port_conflicts(
-        &self,
-        project_name: &str,
-        ports: &[u16],
-    ) -> Vec<(u16, String)> {
+    pub fn check_port_conflicts(&self, project_name: &str, ports: &[u16]) -> Vec<(u16, String)> {
         let mut conflicts = Vec::new();
 
         for port in ports {
@@ -194,4 +185,3 @@ mod tests {
         assert_eq!(retrieved.ports.len(), 1);
     }
 }
-

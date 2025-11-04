@@ -68,6 +68,65 @@ app = "frontend:80"      # app.my-project.local -> frontend:80
 
 If routes are not specified, omd automatically generates them from your `docker-compose.yml`.
 
+## Custom Docker Compose File Location
+
+By default, omd looks for `docker-compose.yml` in the project directory. You can specify a different file or location:
+
+### Compose File in Subdirectory
+
+```toml
+[project]
+name = "my-project"
+domain = "my-project.local"
+compose_file = "docker/docker-compose.yml"
+
+[network]
+name = "my-project-net"
+```
+
+**Project Structure:**
+```
+my-project/
+├── omd.toml
+├── src/
+└── docker/
+    └── docker-compose.yml
+```
+
+### Different File Name (e.g., Multi-Environment)
+
+```toml
+[project]
+name = "my-project"
+domain = "my-project.local"
+compose_file = "docker-compose.dev.yml"
+
+[network]
+name = "my-project-net"
+```
+
+**Project Structure:**
+```
+my-project/
+├── omd.toml
+├── docker-compose.dev.yml
+└── docker-compose.prod.yml
+```
+
+### Default Behavior
+
+If `compose_file` is not specified, `docker-compose.yml` is used by default:
+
+```toml
+[project]
+name = "my-project"
+domain = "my-project.local"
+# compose_file defaults to "docker-compose.yml"
+
+[network]
+name = "my-project-net"
+```
+
 ## Tips
 
 1. **Consistent Naming**: Use the same name prefix for project, network, and containers

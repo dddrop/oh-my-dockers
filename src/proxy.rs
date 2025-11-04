@@ -39,8 +39,7 @@ pub fn add(domain: &str, target: &str) -> Result<()> {
         domain, target, domain, cert_name, cert_name, target
     );
 
-    fs::write(&config_file, caddy_config)
-        .context("Failed to write proxy configuration")?;
+    fs::write(&config_file, caddy_config).context("Failed to write proxy configuration")?;
 
     println!(
         "{} Added proxy rule: {} -> {}",
@@ -74,8 +73,7 @@ pub fn remove(domain: &str) -> Result<()> {
         return Ok(());
     }
 
-    fs::remove_file(&config_file)
-        .context("Failed to remove proxy configuration")?;
+    fs::remove_file(&config_file).context("Failed to remove proxy configuration")?;
 
     println!(
         "{} Removed proxy rule for {}",
@@ -103,8 +101,8 @@ pub fn list() -> Result<()> {
     println!("{}", "Proxy Rules:".blue());
     println!();
 
-    let entries = fs::read_dir(&caddy_projects_dir)
-        .context("Failed to read caddy projects directory")?;
+    let entries =
+        fs::read_dir(&caddy_projects_dir).context("Failed to read caddy projects directory")?;
 
     let mut rules: Vec<ProxyRule> = Vec::new();
 
@@ -133,11 +131,7 @@ pub fn list() -> Result<()> {
     println!("  {}", "-".repeat(60));
 
     for rule in rules {
-        println!(
-            "  {:<40} {}",
-            rule.domain.bright_white(),
-            rule.target
-        );
+        println!("  {:<40} {}", rule.domain.bright_white(), rule.target);
     }
 
     Ok(())
@@ -164,10 +158,7 @@ pub fn reload() -> Result<()> {
         .contains("oh-my-dockers-caddy");
 
     if !caddy_running {
-        println!(
-            "{} Caddy is not running, skipping reload",
-            "⚠".yellow()
-        );
+        println!("{} Caddy is not running, skipping reload", "⚠".yellow());
         return Ok(());
     }
 
@@ -200,9 +191,10 @@ fn parse_proxy_rule(content: &str) -> Option<ProxyRule> {
 
     for line in content.lines() {
         let line = line.trim();
-        
+
         // Find domain (first non-comment line that's not empty and not a block start)
-        if domain.is_none() && !line.is_empty() && !line.starts_with('#') && !line.starts_with('{') {
+        if domain.is_none() && !line.is_empty() && !line.starts_with('#') && !line.starts_with('{')
+        {
             if !line.contains("reverse_proxy") {
                 // Extract domain by splitting on whitespace and removing trailing '{'
                 let domain_str = line.split_whitespace().next().unwrap_or(line);

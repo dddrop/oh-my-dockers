@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::process::Command;
+use std::{collections::HashMap, process::Command};
 
 use anyhow::{Context, Result};
 use colored::Colorize;
@@ -55,7 +54,12 @@ pub fn list() -> Result<()> {
 
         // Get networks for this container
         let networks_output = Command::new("docker")
-            .args(&["inspect", &container, "--format", "{{range $key, $value := .NetworkSettings.Networks}}{{$key}} {{end}}"])
+            .args(&[
+                "inspect",
+                &container,
+                "--format",
+                "{{range $key, $value := .NetworkSettings.Networks}}{{$key}} {{end}}",
+            ])
             .output()
             .context("Failed to inspect container")?;
 
@@ -65,7 +69,7 @@ pub fn list() -> Result<()> {
         // Parse port mappings
         if ports_str != "<none>" && !ports_str.is_empty() {
             let mappings = parse_port_mappings(ports_str)?;
-            
+
             for mapping in mappings {
                 // If container has multiple networks, add to each
                 if network_list.is_empty() {
@@ -110,7 +114,10 @@ pub fn list() -> Result<()> {
     for network in networks {
         println!("  {} {}", "Network:".bright_white(), network.bright_cyan());
         println!("  {}", "-".repeat(80));
-        println!("  {:<25} {:<15} {:<15} {:<10}", "CONTAINER", "INTERNAL", "LOCAL", "PROTOCOL");
+        println!(
+            "  {:<25} {:<15} {:<15} {:<10}",
+            "CONTAINER", "INTERNAL", "LOCAL", "PROTOCOL"
+        );
         println!("  {}", "-".repeat(80));
 
         let mappings = &network_mappings[network];
@@ -131,12 +138,22 @@ pub fn list() -> Result<()> {
 
 /// Show port mappings for a specific network
 pub fn show(network: &str) -> Result<()> {
-    println!("{} Port Mappings for Network: {}", "".blue(), network.bright_cyan());
+    println!(
+        "{} Port Mappings for Network: {}",
+        "".blue(),
+        network.bright_cyan()
+    );
     println!();
 
     // Get all containers in this network
     let output = Command::new("docker")
-        .args(&["network", "inspect", network, "--format", "{{range .Containers}}{{.Name}} {{end}}"])
+        .args(&[
+            "network",
+            "inspect",
+            network,
+            "--format",
+            "{{range .Containers}}{{.Name}} {{end}}",
+        ])
         .output()
         .context("Failed to inspect network")?;
 
@@ -152,7 +169,10 @@ pub fn show(network: &str) -> Result<()> {
         return Ok(());
     }
 
-    println!("  {:<25} {:<15} {:<15} {:<10}", "CONTAINER", "INTERNAL", "LOCAL", "PROTOCOL");
+    println!(
+        "  {:<25} {:<15} {:<15} {:<10}",
+        "CONTAINER", "INTERNAL", "LOCAL", "PROTOCOL"
+    );
     println!("  {}", "-".repeat(80));
 
     let mut found_any = false;
@@ -160,11 +180,19 @@ pub fn show(network: &str) -> Result<()> {
     for container in containers {
         // Get port mappings for this container
         let ps_output = Command::new("docker")
-            .args(&["ps", "--filter", &format!("name={}", container), "--format", "{{.Ports}}"])
+            .args(&[
+                "ps",
+                "--filter",
+                &format!("name={}", container),
+                "--format",
+                "{{.Ports}}",
+            ])
             .output()
             .context("Failed to get container ports")?;
 
-        let ports_str = String::from_utf8_lossy(&ps_output.stdout).trim().to_string();
+        let ports_str = String::from_utf8_lossy(&ps_output.stdout)
+            .trim()
+            .to_string();
 
         if ports_str != "<none>" && !ports_str.is_empty() {
             let mappings = parse_port_mappings(&ports_str)?;
@@ -182,7 +210,10 @@ pub fn show(network: &str) -> Result<()> {
     }
 
     if !found_any {
-        println!("{}", "No port mappings found for containers in this network".yellow());
+        println!(
+            "{}",
+            "No port mappings found for containers in this network".yellow()
+        );
     }
 
     Ok(())
@@ -198,7 +229,7 @@ fn parse_port_mappings(ports_str: &str) -> Result<Vec<PortMapping>> {
 
     for part in parts {
         let part = part.trim();
-        
+
         // Format: "0.0.0.0:8080->80/tcp" or "8080->80/tcp" or "80/tcp"
         if part.contains("->") {
             // Has local port mapping

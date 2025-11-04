@@ -12,7 +12,11 @@ pub fn create(name: &str) -> Result<()> {
         .context("Failed to inspect network")?;
 
     if output.status.success() {
-        println!("{} Network {} already exists", "ℹ".blue(), name.bright_white());
+        println!(
+            "{} Network {} already exists",
+            "ℹ".blue(),
+            name.bright_white()
+        );
     } else {
         println!("{} Creating network {}...", "ℹ".blue(), name.bright_white());
         let status = Command::new("docker")
@@ -36,7 +40,12 @@ pub fn list() -> Result<()> {
     println!();
 
     let output = Command::new("docker")
-        .args(&["network", "ls", "--format", "{{.Name}}\t{{.Driver}}\t{{.Scope}}"])
+        .args(&[
+            "network",
+            "ls",
+            "--format",
+            "{{.Name}}\t{{.Driver}}\t{{.Scope}}",
+        ])
         .output()
         .context("Failed to list networks")?;
 
@@ -82,7 +91,11 @@ pub fn remove(name: &str) -> Result<()> {
         .context("Failed to inspect network")?;
 
     if !output.status.success() {
-        println!("{} Network {} does not exist", "⚠".yellow(), name.bright_white());
+        println!(
+            "{} Network {} does not exist",
+            "⚠".yellow(),
+            name.bright_white()
+        );
         return Ok(());
     }
 
@@ -115,7 +128,14 @@ pub fn connect(network: &str, container: &str) -> Result<()> {
 
     // Check if container exists
     let container_output = Command::new("docker")
-        .args(&["ps", "-a", "--filter", &format!("name={}", container), "--format", "{{.Names}}"])
+        .args(&[
+            "ps",
+            "-a",
+            "--filter",
+            &format!("name={}", container),
+            "--format",
+            "{{.Names}}",
+        ])
         .output()
         .context("Failed to check container")?;
 
@@ -140,7 +160,11 @@ pub fn connect(network: &str, container: &str) -> Result<()> {
         .context("Failed to connect container to network")?;
 
     if !status.success() {
-        anyhow::bail!("Failed to connect container {} to network {}", container, network);
+        anyhow::bail!(
+            "Failed to connect container {} to network {}",
+            container,
+            network
+        );
     }
 
     println!(

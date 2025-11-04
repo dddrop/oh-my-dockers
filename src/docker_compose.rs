@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
+use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result};
 use serde_yaml::Value;
@@ -34,8 +32,8 @@ impl ComposeInfo {
         let content = fs::read_to_string(path)
             .context(format!("Failed to read docker-compose file: {:?}", path))?;
 
-        let yaml: Value = serde_yaml::from_str(&content)
-            .context("Failed to parse docker-compose YAML")?;
+        let yaml: Value =
+            serde_yaml::from_str(&content).context("Failed to parse docker-compose YAML")?;
 
         let mut services = HashMap::new();
 
@@ -94,7 +92,9 @@ impl ComposeInfo {
 
                         // Parse host port (may have range like "8080-8090")
                         if let Some((start, end)) = host_port_str.split_once('-') {
-                            if let (Ok(start_port), Ok(end_port)) = (start.parse::<u16>(), end.parse::<u16>()) {
+                            if let (Ok(start_port), Ok(end_port)) =
+                                (start.parse::<u16>(), end.parse::<u16>())
+                            {
                                 for port in start_port..=end_port {
                                     host_ports.push(port);
                                 }
@@ -104,7 +104,10 @@ impl ComposeInfo {
                         }
 
                         // Parse container port
-                        let container_port_only = container_port_str.split('/').next().unwrap_or(container_port_str);
+                        let container_port_only = container_port_str
+                            .split('/')
+                            .next()
+                            .unwrap_or(container_port_str);
                         if let Ok(port) = container_port_only.parse::<u16>() {
                             container_ports.push(port);
                         }
@@ -203,9 +206,11 @@ impl ComposeInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Write;
+
     use tempfile::NamedTempFile;
+
+    use super::*;
 
     #[test]
     fn test_parse_simple_compose() {
@@ -291,4 +296,3 @@ services:
         assert_eq!(app.container_ports, vec![80]);
     }
 }
-

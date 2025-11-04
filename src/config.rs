@@ -1,6 +1,8 @@
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::{env, fs};
+use std::{
+    collections::HashMap,
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result};
 use dirs;
@@ -14,9 +16,8 @@ pub fn get_config_dir() -> Result<PathBuf> {
         return Ok(PathBuf::from(custom_dir));
     }
 
-    let home_dir = dirs::home_dir()
-        .context("Failed to get home directory")?;
-    
+    let home_dir = dirs::home_dir().context("Failed to get home directory")?;
+
     Ok(home_dir.join(".oh-my-dockers"))
 }
 
@@ -25,15 +26,10 @@ pub fn ensure_config_dir() -> Result<PathBuf> {
     let config_dir = get_config_dir()?;
 
     // Create main directory
-    fs::create_dir_all(&config_dir)
-        .context("Failed to create config directory")?;
+    fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
 
     // Create subdirectories
-    let subdirs = [
-        "caddy",
-        "caddy/certs",
-        "caddy/projects",
-    ];
+    let subdirs = ["caddy", "caddy/certs", "caddy/projects"];
 
     for subdir in &subdirs {
         let dir_path = config_dir.join(subdir);
@@ -75,8 +71,7 @@ caddy-net = {}
 # my-network = { driver = "bridge", subnet = "172.20.0.0/16", gateway = "172.20.0.1" }
 "#;
 
-    fs::write(config_path, default_config)
-        .context("Failed to write default config file")?;
+    fs::write(config_path, default_config).context("Failed to write default config file")?;
 
     Ok(())
 }
@@ -117,12 +112,21 @@ pub struct ProjectConfig {
     pub caddy: CaddyConfig,
 }
 
+/// Default docker-compose file name
+fn default_compose_file() -> String {
+    "docker-compose.yml".to_string()
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProjectInfo {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
     pub domain: String,
+    /// Path to docker-compose file (relative to project directory)
+    /// Defaults to "docker-compose.yml" if not specified
+    #[serde(default = "default_compose_file")]
+    pub compose_file: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -149,10 +153,8 @@ pub fn load_global_config() -> Result<GlobalConfig> {
 
 /// Load project configuration from a specific path
 pub fn load_project_config_from_path(path: &Path) -> Result<ProjectConfig> {
-    let content = fs::read_to_string(path).context(format!(
-        "Failed to read project configuration: {:?}",
-        path
-    ))?;
+    let content = fs::read_to_string(path)
+        .context(format!("Failed to read project configuration: {:?}", path))?;
 
     toml::from_str(&content).context("Failed to parse project configuration")
 }
@@ -160,7 +162,7 @@ pub fn load_project_config_from_path(path: &Path) -> Result<ProjectConfig> {
 /// Load project configuration from current directory
 pub fn load_project_config() -> Result<ProjectConfig> {
     let config_path = Path::new("omd.toml");
-    
+
     if !config_path.exists() {
         anyhow::bail!("No omd.toml found in current directory. Run 'omd init' to create one.");
     }
@@ -170,14 +172,13 @@ pub fn load_project_config() -> Result<ProjectConfig> {
 
 /// Get the current directory name (for default project naming)
 pub fn get_current_dir_name() -> Result<String> {
-    let current_dir = env::current_dir()
-        .context("Failed to get current directory")?;
-    
+    let current_dir = env::current_dir().context("Failed to get current directory")?;
+
     let dir_name = current_dir
         .file_name()
         .context("Failed to get directory name")?
         .to_string_lossy()
         .to_string();
-    
+
     Ok(dir_name)
 }

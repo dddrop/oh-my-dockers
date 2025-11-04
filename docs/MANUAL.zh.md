@@ -225,10 +225,11 @@ omd up
 2. 解析 `docker-compose.yml` 提取端口和容器名
 3. 检查与其他已注册项目的端口冲突
 4. 如果不存在则创建 Docker 网络
-5. 生成 Caddy 反向代理配置
-6. 在全局注册表中注册项目
+5. **如果 Caddy 未运行则自动启动**
+6. 生成 Caddy 反向代理配置
+7. 在全局注册表中注册项目
 
-**重要**：这不会启动容器。需要单独运行 `docker compose up -d`。
+**重要**：这不会启动项目容器。需要单独运行 `docker compose up -d`。
 
 ### omd project down
 
@@ -344,6 +345,11 @@ name = "my-project"
 
 # 此项目的域名
 domain = "my-project.local"
+
+# 可选：docker-compose 文件路径（相对于项目目录）
+# 如果未指定，默认为 "docker-compose.yml"
+# compose_file = "docker/docker-compose.yml"
+# compose_file = "docker-compose.dev.yml"
 
 [network]
 # 此项目的 Docker 网络名称

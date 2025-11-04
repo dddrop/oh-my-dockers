@@ -1,17 +1,17 @@
 mod caddy;
 
-use std::env;
-use std::fs;
-use std::path::Path;
+use std::{env, fs};
 
 use anyhow::{Context, Result};
 use colored::Colorize;
 
-use crate::config::{load_project_config, get_config_dir, load_global_config};
-use crate::docker_compose::ComposeInfo;
-use crate::network::{ensure_network, connect_caddy_to_network};
-use crate::registry::{PortRegistry, ProjectEntry};
-use crate::proxy;
+use crate::{
+    config::{get_config_dir, load_global_config, load_project_config},
+    docker_compose::ComposeInfo,
+    network::{connect_caddy_to_network, ensure_network},
+    proxy,
+    registry::{PortRegistry, ProjectEntry},
+};
 
 /// List all registered projects
 pub fn list() -> Result<()> {
@@ -39,7 +39,7 @@ pub fn list() -> Result<()> {
         if !entry.ports.is_empty() {
             println!("    Ports: {}", format_ports(&entry.ports));
         }
-        println!();
+            println!();
     }
 
     Ok(())
@@ -51,10 +51,9 @@ pub fn up() -> Result<()> {
 
     // Load project configuration from current directory
     let mut config = load_project_config()?;
-    
-    let current_dir = env::current_dir()
-        .context("Failed to get current directory")?;
-    
+
+    let current_dir = env::current_dir().context("Failed to get current directory")?;
+
     // Set project path
     config.project.path = Some(current_dir.to_string_lossy().to_string());
 
@@ -66,31 +65,40 @@ pub fn up() -> Result<()> {
     println!("{} Domain: {}", "ℹ".blue(), config.project.domain);
     println!("{} Network: {}", "ℹ".blue(), config.network.name);
 
-    // Check for docker-compose.yml
-    let compose_path = Path::new("docker-compose.yml");
+    // Check for docker-compose file
+    let compose_path = current_dir.join(&config.project.compose_file);
     if !compose_path.exists() {
         anyhow::bail!(
-            "No docker-compose.yml found in current directory.\n\
-            Please create a docker-compose.yml before running 'omd up'."
+            "docker-compose file not found: {}\n\
+            Please ensure the file exists or update the 'compose_file' setting in omd.toml.",
+            compose_path.display()
         );
     }
 
-    // Parse docker-compose.yml
-    println!("{} Parsing docker-compose.yml...", "ℹ".blue());
-    let compose_info = ComposeInfo::parse(compose_path)?;
+    // Parse docker-compose file
+    println!("{} Parsing {}...", "ℹ".blue(), config.project.compose_file);
+    let compose_info = ComposeInfo::parse(&compose_path)?;
 
     // Get all host ports
     let host_ports = compose_info.get_all_host_ports();
-    
+
     if !host_ports.is_empty() {
-        println!("{} Found host ports: {}", "ℹ".blue(), format_ports(&host_ports));
+        println!(
+            "{} Found host ports: {}",
+            "ℹ".blue(),
+            format_ports(&host_ports)
+        );
     } else {
         println!("{} No host port mappings found", "ℹ".blue());
     }
 
     // Get all container names
     let container_names = compose_info.get_all_container_names(&config.project.name);
-    println!("{} Container names: {}", "ℹ".blue(), container_names.join(", "));
+    println!(
+        "{} Container names: {}",
+        "ℹ".blue(),
+        container_names.join(", ")
+    );
 
     // Check for port conflicts
     let mut registry = PortRegistry::load()?;
@@ -107,7 +115,9 @@ pub fn up() -> Result<()> {
             );
         }
         println!();
-        anyhow::bail!("Cannot proceed due to port conflicts. Please update your docker-compose.yml to use different ports.");
+        anyhow::bail!(
+            "Cannot proceed due to port conflicts. Please update your docker-compose.yml to use different ports."
+        );
     }
 
     println!("{} No port conflicts", "✓".green());
@@ -121,7 +131,10 @@ pub fn up() -> Result<()> {
     }
     
     // Create project network
-    ensure_network(&config.network.name)?;
+        ensure_network(&config.network.name)?;
+
+    // Auto-start Caddy if not running
+    crate::caddy_manager::auto_start_if_needed()?;
 
     // Generate Caddy configuration
     caddy::generate_caddy_config(&config, &compose_info)?;
@@ -138,7 +151,7 @@ pub fn up() -> Result<()> {
         ports: host_ports,
         containers: container_names,
     };
-    
+
     registry.register_project(entry)?;
 
     // Reload Caddy
@@ -152,8 +165,14 @@ pub fn up() -> Result<()> {
     );
     println!();
     println!("Next steps:");
-    println!("  1. Run {} to start your services", "docker compose up -d".bright_white());
-    println!("  2. Access your project at: https://{}", config.project.domain);
+    println!(
+        "  1. Run {} to start your services",
+        "docker compose up -d".bright_white()
+    );
+    println!(
+        "  2. Access your project at: https://{}",
+        config.project.domain
+    );
     if !config.caddy.routes.is_empty() {
         println!();
         println!("Custom routes:");
@@ -172,7 +191,11 @@ pub fn down() -> Result<()> {
     // Load project configuration
     let config = load_project_config()?;
 
-    println!("{} Project: {}", "ℹ".blue(), config.project.name.bright_white());
+        println!(
+        "{} Project: {}",
+        "ℹ".blue(),
+        config.project.name.bright_white()
+        );
 
     // Remove Caddy configuration
     let config_dir = get_config_dir()?;
@@ -182,8 +205,7 @@ pub fn down() -> Result<()> {
         .join(format!("{}.caddy", config.project.name));
 
     if caddy_config.exists() {
-        fs::remove_file(&caddy_config)
-            .context("Failed to remove Caddy configuration")?;
+        fs::remove_file(&caddy_config).context("Failed to remove Caddy configuration")?;
         println!("{} Removed Caddy configuration", "✓".green());
     }
 
@@ -213,17 +235,17 @@ fn format_ports(ports: &[u16]) -> String {
     if ports.is_empty() {
         return "none".to_string();
     }
-    
+
     let mut formatted = ports
         .iter()
         .map(|p| p.to_string())
         .collect::<Vec<_>>()
         .join(", ");
-    
+
     if formatted.len() > 60 {
         formatted.truncate(60);
         formatted.push_str("...");
     }
-    
+
     formatted
 }

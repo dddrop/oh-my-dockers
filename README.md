@@ -88,13 +88,14 @@ networks:
 ### 4. Configure Caddy and Check for Conflicts
 
 ```bash
-omd up
+omd project up
 ```
 
 This will:
 - Parse your `docker-compose.yml`
 - Check for port conflicts with other registered projects
 - Create necessary Docker networks
+- **Automatically start Caddy** if not running
 - Generate Caddy reverse proxy configuration
 - Register the project
 
@@ -142,6 +143,11 @@ name = "my-project"
 # Domain for this project
 domain = "my-project.local"
 
+# Optional: Path to docker-compose file (relative to project directory)
+# Defaults to "docker-compose.yml" if not specified
+# compose_file = "docker/docker-compose.yml"
+# compose_file = "docker-compose.dev.yml"
+
 [network]
 # Docker network name for this project
 name = "my-project-net"
@@ -158,6 +164,26 @@ routes = {}
 ```
 
 ## Commands
+
+### Caddy Management
+
+```bash
+# Start Caddy (usually auto-started by omd project up)
+omd caddy start
+
+# Stop Caddy
+omd caddy stop
+
+# Restart Caddy
+omd caddy restart
+
+# Show Caddy status
+omd caddy status
+
+# Show Caddy logs
+omd caddy logs
+omd caddy logs --follow  # Follow logs in real-time
+```
 
 ### Initialize a Project
 

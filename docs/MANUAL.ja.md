@@ -225,10 +225,11 @@ omd up
 2. `docker-compose.yml` を解析してポートとコンテナ名を抽出
 3. 他の登録済みプロジェクトとのポート競合をチェック
 4. 存在しない場合は Docker ネットワークを作成
-5. Caddy リバースプロキシ設定を生成
-6. グローバルレジストリにプロジェクトを登録
+5. **Caddy が起動していない場合は自動的に起動**
+6. Caddy リバースプロキシ設定を生成
+7. グローバルレジストリにプロジェクトを登録
 
-**重要**: これはコンテナを起動しません。`docker compose up -d` を別途実行してください。
+**重要**: これはプロジェクトのコンテナを起動しません。`docker compose up -d` を別途実行してください。
 
 ### omd project down
 
@@ -344,6 +345,11 @@ name = "my-project"
 
 # このプロジェクトのドメイン
 domain = "my-project.local"
+
+# オプション：docker-compose ファイルのパス（プロジェクトディレクトリからの相対パス）
+# 指定されていない場合のデフォルトは "docker-compose.yml"
+# compose_file = "docker/docker-compose.yml"
+# compose_file = "docker-compose.dev.yml"
 
 [network]
 # このプロジェクトの Docker ネットワーク名

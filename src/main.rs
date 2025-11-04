@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+mod caddy_manager;
 mod config;
 mod docker_compose;
 mod init;
@@ -22,6 +23,11 @@ struct Cli {
 enum Commands {
     /// Initialize omd.toml in current directory
     Init,
+    /// Manage Caddy reverse proxy
+    Caddy {
+        #[command(subcommand)]
+        subcommand: CaddyCommands,
+    },
     /// Manage Docker networks
     Network {
         #[command(subcommand)]
@@ -46,6 +52,24 @@ enum Commands {
 }
 
 #[derive(Subcommand)]
+enum CaddyCommands {
+    /// Start Caddy container
+    Start,
+    /// Stop Caddy container
+    Stop,
+    /// Restart Caddy container
+    Restart,
+    /// Show Caddy status
+    Status,
+    /// Show Caddy logs
+    Logs {
+        /// Follow log output
+        #[arg(short, long)]
+        follow: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum NetworkCommands {
     /// List all networks
     List,
@@ -54,10 +78,7 @@ enum NetworkCommands {
 #[derive(Subcommand)]
 enum ProxyCommands {
     /// Add a reverse proxy rule
-    Add {
-        domain: String,
-        target: String,
-    },
+    Add { domain: String, target: String },
     /// Remove a reverse proxy rule
     Remove { domain: String },
     /// List all proxy rules
@@ -86,6 +107,23 @@ fn main() -> Result<()> {
         Commands::Init => {
             init::init()?;
         }
+        Commands::Caddy { subcommand } => match subcommand {
+            CaddyCommands::Start => {
+                caddy_manager::start()?;
+            }
+            CaddyCommands::Stop => {
+                caddy_manager::stop()?;
+            }
+            CaddyCommands::Restart => {
+                caddy_manager::restart()?;
+            }
+            CaddyCommands::Status => {
+                caddy_manager::status()?;
+            }
+            CaddyCommands::Logs { follow } => {
+                caddy_manager::logs(follow)?;
+            }
+        },
         Commands::Network { subcommand } => match subcommand {
             NetworkCommands::List => {
                 network::list()?;
@@ -127,4 +165,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-
