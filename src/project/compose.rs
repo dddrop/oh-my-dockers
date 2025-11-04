@@ -182,10 +182,17 @@ fn parse_template(content: &str) -> TemplateContent {
                 _in_services_section = false;
                 _in_volumes_section = false;
                 break;
+            } else {
+                // Unrecognized non-indented line (e.g., comments, unknown sections)
+                // Reset section flags to avoid incorrectly adding content
+                _in_services_section = false;
+                _in_volumes_section = false;
+                continue;
             }
         }
 
         // Add content to appropriate section
+        // Only add properly indented lines (not empty lines or non-indented content)
         if _in_services_section && !line.is_empty() {
             services.push_str(line);
             services.push('\n');
