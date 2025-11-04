@@ -1,6 +1,4 @@
-use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
@@ -206,7 +204,12 @@ fn parse_proxy_rule(content: &str) -> Option<ProxyRule> {
         // Find domain (first non-comment line that's not empty and not a block start)
         if domain.is_none() && !line.is_empty() && !line.starts_with('#') && !line.starts_with('{') {
             if !line.contains("reverse_proxy") {
-                domain = Some(line.to_string());
+                // Extract domain by splitting on whitespace and removing trailing '{'
+                let domain_str = line.split_whitespace().next().unwrap_or(line);
+                let domain_clean = domain_str.trim_end_matches('{').trim();
+                if !domain_clean.is_empty() {
+                    domain = Some(domain_clean.to_string());
+                }
             }
         }
 
