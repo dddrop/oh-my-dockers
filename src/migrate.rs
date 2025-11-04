@@ -1,10 +1,10 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
 
-use crate::config::{ensure_config_dir, get_config_dir};
+use crate::config::ensure_config_dir;
 
 /// Migrate existing configuration files to the new config directory
 pub fn migrate_from_current_dir() -> Result<()> {
