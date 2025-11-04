@@ -2,11 +2,13 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod config;
-mod migrate;
+mod docker_compose;
+mod init;
 mod network;
 mod ports;
 mod project;
 mod proxy;
+mod registry;
 
 #[derive(Parser)]
 #[command(name = "omd")]
@@ -18,6 +20,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Initialize omd.toml in current directory
+    Init,
     /// Manage Docker networks
     Network {
         #[command(subcommand)]
@@ -39,23 +43,12 @@ enum Commands {
         #[command(subcommand)]
         subcommand: ProjectCommands,
     },
-    /// Migrate existing configuration to new config directory
-    Migrate,
 }
 
 #[derive(Subcommand)]
 enum NetworkCommands {
-    /// Create a new network
-    Create { name: String },
     /// List all networks
     List,
-    /// Remove a network
-    Remove { name: String },
-    /// Connect a container to a network
-    Connect {
-        network: String,
-        container: String,
-    },
 }
 
 #[derive(Subcommand)]
@@ -75,12 +68,12 @@ enum ProxyCommands {
 
 #[derive(Subcommand)]
 enum ProjectCommands {
-    /// List all projects
+    /// List all registered projects
     List,
-    /// Start a project
-    Up { project: String },
-    /// Stop a project
-    Down { project: String },
+    /// Configure project (run from project directory)
+    Up,
+    /// Remove project configuration (run from project directory)
+    Down,
 }
 
 fn main() -> Result<()> {
@@ -90,18 +83,12 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Init => {
+            init::init()?;
+        }
         Commands::Network { subcommand } => match subcommand {
-            NetworkCommands::Create { name } => {
-                network::create(&name)?;
-            }
             NetworkCommands::List => {
                 network::list()?;
-            }
-            NetworkCommands::Remove { name } => {
-                network::remove(&name)?;
-            }
-            NetworkCommands::Connect { network, container } => {
-                network::connect(&network, &container)?;
             }
         },
         Commands::Proxy { subcommand } => match subcommand {
@@ -129,16 +116,13 @@ fn main() -> Result<()> {
             ProjectCommands::List => {
                 project::list()?;
             }
-            ProjectCommands::Up { project } => {
-                project::up(&project)?;
+            ProjectCommands::Up => {
+                project::up()?;
             }
-            ProjectCommands::Down { project } => {
-                project::down(&project)?;
+            ProjectCommands::Down => {
+                project::down()?;
             }
         },
-        Commands::Migrate => {
-            migrate::migrate_from_current_dir()?;
-        }
     }
 
     Ok(())

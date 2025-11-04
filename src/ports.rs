@@ -7,6 +7,7 @@ use colored::Colorize;
 #[derive(Debug, Clone)]
 struct PortMapping {
     container: String,
+    #[allow(dead_code)]
     network: String,
     internal_port: String,
     local_port: String,

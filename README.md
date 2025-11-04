@@ -1,16 +1,16 @@
 # oh-my-dockers
 
-A powerful CLI tool for managing Docker development environments with automatic reverse proxy configuration and network management.
+A powerful CLI tool for managing Docker development environments with automatic reverse proxy configuration, network management, and port conflict detection.
 
 ## Features
 
-- 🚀 **Project Management**: Start and stop Docker Compose projects with a single command
-- 🌐 **Network Management**: Create, list, and manage Docker networks
+- 🚀 **Local Project Configuration**: Each project has its own `omd.toml` configuration
+- 🌐 **Network Management**: Automatic Docker network creation and management
 - 🔄 **Reverse Proxy**: Automatic HTTPS reverse proxy configuration with Caddy
-- 🔌 **Port Mapping**: View and manage port mappings across Docker networks
-- 📁 **Configuration Management**: Centralized configuration in `~/.oh-my-dockers`
+- 🔌 **Port Conflict Detection**: Detect and prevent port conflicts across projects
+- 📁 **Centralized State**: Project registry stored in `~/.oh-my-dockers`
 - 🔐 **HTTPS Support**: Local SSL certificate support for secure development
-- 🎯 **Port Planning**: Visualize all network port mappings in one place
+- 🎯 **Smart Container Discovery**: Automatically parses docker-compose.yml for container info
 
 ## Installation
 
@@ -28,7 +28,7 @@ cd oh-my-dockers
 cargo build --release
 ```
 
-The binary will be available at `target/release/oh-my-dockers`.
+The binary will be available at `target/release/omd`.
 
 ### Install to System Path (Optional)
 
@@ -38,54 +38,75 @@ cargo install --path .
 
 ## Quick Start
 
-### 1. First Run
-
-The tool automatically creates the configuration directory on first run:
+### 1. Navigate to Your Project
 
 ```bash
-oh-my-dockers project list
+cd /path/to/your/project
 ```
 
-Configuration will be created at `~/.oh-my-dockers` (or `$OH_MY_DOCKERS_DIR` if set).
-
-### 2. Migrate Existing Configuration
-
-If you have existing configuration files in the project directory:
+### 2. Initialize omd Configuration
 
 ```bash
-oh-my-dockers migrate
+omd init
 ```
 
-This will migrate your projects, templates, and Caddy configurations to the new location.
+This creates an `omd.toml` configuration file with interactive prompts.
 
-### 3. Create a Project
+### 3. Create Your docker-compose.yml
 
-Create a project configuration file at `~/.oh-my-dockers/projects/my-project.toml`:
+Create or ensure you have a `docker-compose.yml` file in your project directory. Example:
 
-```toml
-[project]
-name = "my-project"
-domain = "my-project.local"
-mode = "managed"
+```yaml
+services:
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: secret
+    networks:
+      - myapp-net
 
-[network]
-name = "my-project-net"
+  backend:
+    image: myapp-backend
+    ports:
+      - "3000:3000"
+    networks:
+      - myapp-net
 
-[caddy]
-auto_subdomains = true
+  frontend:
+    image: myapp-frontend
+    ports:
+      - "8080:80"
+    networks:
+      - myapp-net
+
+networks:
+  myapp-net:
 ```
 
-### 4. Start a Project
+### 4. Configure Caddy and Check for Conflicts
 
 ```bash
-oh-my-dockers project up my-project
+omd up
 ```
 
-### 5. View Port Mappings
+This will:
+- Parse your `docker-compose.yml`
+- Check for port conflicts with other registered projects
+- Create necessary Docker networks
+- Generate Caddy reverse proxy configuration
+- Register the project
+
+### 5. Start Your Services
 
 ```bash
-oh-my-dockers ports
+docker compose up -d
 ```
+
+### 6. Access Your Project
+
+Visit `https://your-project.local` (or the domain you configured).
 
 ## Configuration
 
@@ -102,119 +123,211 @@ export OH_MY_DOCKERS_DIR="/custom/path"
 ```
 ~/.oh-my-dockers/
 ├── config.toml          # Global configuration
-├── projects/             # Project configuration files
-├── caddy/                # Caddy configuration
-│   ├── Caddyfile
-│   ├── certs/            # SSL certificates
-│   └── projects/         # Project-specific Caddy configs
-├── templates/            # Docker Compose templates
-├── init/                # Initialization scripts
-└── generated/           # Generated Docker Compose files
+├── registry.json        # Project registry with port allocations
+└── caddy/
+    ├── Caddyfile
+    ├── certs/           # SSL certificates
+    └── projects/        # Project-specific Caddy configs
 ```
 
-## Basic Usage
+### Project Configuration (omd.toml)
+
+Each project has an `omd.toml` file in its directory:
+
+```toml
+[project]
+# Project name (used for container naming)
+name = "my-project"
+
+# Domain for this project
+domain = "my-project.local"
+
+[network]
+# Docker network name for this project
+name = "my-project-net"
+
+[caddy]
+# Custom Caddy routes (optional)
+# If not specified, routes are auto-generated from docker-compose.yml
+routes = {}
+
+# Or specify custom routes:
+# [caddy.routes]
+# api = "backend-container:3000"
+# app = "frontend-container:80"
+```
+
+## Commands
+
+### Initialize a Project
+
+```bash
+cd /path/to/project
+omd init
+```
+
+Creates an `omd.toml` configuration file with interactive prompts.
+
+### Configure Project
+
+```bash
+cd /path/to/project
+omd up
+```
+
+This command:
+1. Reads `omd.toml` and `docker-compose.yml`
+2. Checks for port conflicts
+3. Creates Docker networks
+4. Generates Caddy configuration
+5. Registers the project
+
+**Note**: This doesn't start containers, only configures the infrastructure.
+
+### Remove Project Configuration
+
+```bash
+cd /path/to/project
+omd down
+```
+
+Removes Caddy configuration and unregisters the project. Containers remain running.
+
+### List Registered Projects
+
+```bash
+omd project list
+```
+
+Shows all registered projects with their paths, domains, and port allocations.
 
 ### Network Management
 
 ```bash
 # List all networks
-oh-my-dockers network list
-
-# Create a network
-oh-my-dockers network create my-network
-
-# Remove a network
-oh-my-dockers network remove my-network
-
-# Connect a container to a network
-oh-my-dockers network connect my-network my-container
+omd network list
 ```
 
 ### Reverse Proxy Management
 
 ```bash
 # Add a proxy rule
-oh-my-dockers proxy add example.com backend:8080
+omd proxy add example.com backend:8080
 
 # List all proxy rules
-oh-my-dockers proxy list
+omd proxy list
 
 # Remove a proxy rule
-oh-my-dockers proxy remove example.com
+omd proxy remove example.com
 
 # Reload Caddy configuration
-oh-my-dockers proxy reload
+omd proxy reload
 ```
 
 ### Port Mapping
 
 ```bash
 # List all port mappings
-oh-my-dockers ports
+omd ports
 
 # Show ports for a specific network
-oh-my-dockers ports show my-network
+omd ports show my-network
 ```
 
-### Project Management
+## How It Works
+
+### Port Conflict Detection
+
+When you run `omd up`, the tool:
+
+1. Parses your `docker-compose.yml` to extract host port mappings
+2. Checks the project registry for conflicts
+3. Displays conflicts with project names if found
+4. Only proceeds if no conflicts exist
+
+Example output:
+
+```
+✗ Port conflicts detected:
+  Port 5432 is already used by project another-project
+```
+
+### Automatic Route Generation
+
+If you don't specify custom routes in `omd.toml`, the tool automatically generates Caddy routes based on your `docker-compose.yml`:
+
+- Each service becomes a subdomain: `{service}.{domain}`
+- Container names are automatically detected or generated
+- Only services with exposed ports get routes
+
+### Custom Routes
+
+You can override automatic routing by specifying routes in `omd.toml`:
+
+```toml
+[caddy.routes]
+api = "my-backend-container:3000"
+app = "my-frontend-container:80"
+admin = "my-admin-container:8080"
+```
+
+This creates:
+- `api.my-project.local` → `my-backend-container:3000`
+- `app.my-project.local` → `my-frontend-container:80`
+- `admin.my-project.local` → `my-admin-container:8080`
+
+## Workflow Example
 
 ```bash
-# List all projects
-oh-my-dockers project list
+# Create a new project
+mkdir my-awesome-app
+cd my-awesome-app
 
-# Start a project
-oh-my-dockers project up my-project
+# Initialize omd configuration
+omd init
+# > Project name [my-awesome-app]: 
+# > Domain [my-awesome-app.local]: 
+# > Network name [my-awesome-app-net]: 
 
-# Stop a project
-oh-my-dockers project down my-project
-```
+# Create your docker-compose.yml
+cat > docker-compose.yml <<EOF
+services:
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: secret
+    networks:
+      - my-awesome-app-net
 
-## Project Configuration
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    networks:
+      - my-awesome-app-net
 
-Projects are configured using TOML files in `~/.oh-my-dockers/projects/`.
+networks:
+  my-awesome-app-net:
+EOF
 
-### Managed Mode
+# Configure infrastructure
+omd up
+# ✓ No port conflicts
+# ✓ Network created
+# ✓ Caddy configuration generated
 
-In managed mode, oh-my-dockers controls all services:
+# Start services
+docker compose up -d
 
-```toml
-[project]
-name = "my-project"
-domain = "my-project.local"
-mode = "managed"
-port_offset = 0  # Optional: offset for database ports
-
-[services]
-postgres = { enabled = true, version = "latest" }
-redis = { enabled = true, version = "latest" }
-n8n = { enabled = true, version = "latest" }
-
-[network]
-name = "my-project-net"
-
-[caddy]
-auto_subdomains = true
-```
-
-### Proxy-Only Mode
-
-In proxy-only mode, services are managed externally:
-
-```toml
-[project]
-name = "my-project"
-domain = "my-project.local"
-mode = "proxy-only"
-
-[network]
-name = "my-project-net"
-external = true
-
-[caddy]
-routes = [
-    { subdomain = "api", target = "backend:3000" },
-    { subdomain = "app", target = "frontend:80" }
-]
+# Check registered projects
+omd project list
+# • my-awesome-app
+#   Path: /path/to/my-awesome-app
+#   Domain: my-awesome-app.local
+#   Network: my-awesome-app-net
+#   Ports: 5432, 3000
 ```
 
 ## Requirements
@@ -233,5 +346,6 @@ routes = [
 
 ## See Also
 
-- [MANUAL.md](MANUAL.md) - Detailed usage manual
-- [TEST_RESULTS.md](TEST_RESULTS.md) - Test results and verification
+- [docs/MANUAL.md](docs/MANUAL.md) - Detailed usage manual (English)
+- [docs/MANUAL.zh.md](docs/MANUAL.zh.md) - 使用手册（中文）
+- [docs/MANUAL.ja.md](docs/MANUAL.ja.md) - マニュアル（日本語）

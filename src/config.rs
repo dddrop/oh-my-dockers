@@ -30,13 +30,9 @@ pub fn ensure_config_dir() -> Result<PathBuf> {
 
     // Create subdirectories
     let subdirs = [
-        "projects",
         "caddy",
         "caddy/certs",
         "caddy/projects",
-        "templates",
-        "init",
-        "generated",
     ];
 
     for subdir in &subdirs {
@@ -62,23 +58,21 @@ fn create_default_config(config_path: &Path) -> Result<()> {
 caddy_network = "caddy-net"
 
 # Directories (relative to config directory)
-projects_dir = "projects"
-templates_dir = "templates"
-init_dir = "init"
 caddy_projects_dir = "caddy/projects"
 caddy_certs_dir = "caddy/certs"
 
 [defaults]
-# Default versions for services
-postgres_version = "latest"
-redis_version = "latest"
-surrealdb_version = "latest"
-chroma_version = "latest"
-ollama_version = "latest"
-n8n_version = "latest"
-
 # Default timezone
 timezone = "Asia/Tokyo"
+
+# Network definitions
+# Networks are automatically created when running 'omd project up'
+[networks]
+# Caddy reverse proxy network
+caddy-net = {}
+
+# You can define additional networks with custom settings:
+# my-network = { driver = "bridge", subnet = "172.20.0.0/16", gateway = "172.20.0.1" }
 "#;
 
     fs::write(config_path, default_config)
@@ -92,74 +86,55 @@ pub struct GlobalConfig {
     pub global: GlobalSettings,
     #[serde(default)]
     pub defaults: DefaultSettings,
+    #[serde(default)]
+    pub networks: HashMap<String, NetworkDefinition>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GlobalSettings {
     pub caddy_network: String,
-    pub projects_dir: String,
-    pub templates_dir: String,
-    pub init_dir: String,
     pub caddy_projects_dir: String,
     pub caddy_certs_dir: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct DefaultSettings {
-    pub postgres_version: Option<String>,
-    pub redis_version: Option<String>,
-    pub surrealdb_version: Option<String>,
-    pub chroma_version: Option<String>,
-    pub ollama_version: Option<String>,
-    pub n8n_version: Option<String>,
     pub timezone: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub struct NetworkDefinition {
+    pub driver: Option<String>,
+    pub subnet: Option<String>,
+    pub gateway: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProjectConfig {
     pub project: ProjectInfo,
-    #[serde(default)]
-    pub services: HashMap<String, ServiceConfig>,
     pub network: NetworkConfig,
+    #[serde(default)]
     pub caddy: CaddyConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ProjectInfo {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
     pub domain: String,
-    pub mode: String,
-    #[serde(default)]
-    pub port_offset: u16,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ServiceConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    pub version: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NetworkConfig {
     pub name: String,
-    #[serde(default)]
-    pub external: bool,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct CaddyConfig {
+    /// Custom routes mapping: subdomain/path -> container:port
     #[serde(default)]
-    pub auto_subdomains: bool,
-    #[serde(default)]
-    pub routes: Vec<CaddyRoute>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CaddyRoute {
-    pub domain: Option<String>,
-    pub subdomain: Option<String>,
-    pub target: String,
+    pub routes: HashMap<String, String>,
 }
 
 /// Load global configuration
@@ -172,74 +147,37 @@ pub fn load_global_config() -> Result<GlobalConfig> {
     toml::from_str(&content).context("Failed to parse config.toml")
 }
 
-/// Load project configuration
-pub fn load_project_config(project: &str) -> Result<ProjectConfig> {
-    let config_dir = get_config_dir()?;
-    let global_config = load_global_config()?;
-    let projects_dir = config_dir.join(&global_config.global.projects_dir);
-    let config_path = projects_dir.join(format!("{}.toml", project));
-    
-    let content = fs::read_to_string(&config_path).context(format!(
+/// Load project configuration from a specific path
+pub fn load_project_config_from_path(path: &Path) -> Result<ProjectConfig> {
+    let content = fs::read_to_string(path).context(format!(
         "Failed to read project configuration: {:?}",
-        config_path
+        path
     ))?;
 
     toml::from_str(&content).context("Failed to parse project configuration")
 }
 
-/// List all project configurations
-pub fn list_projects() -> Result<Vec<String>> {
-    let config_dir = get_config_dir()?;
-    let global_config = load_global_config()?;
-    let projects_dir = config_dir.join(&global_config.global.projects_dir);
+/// Load project configuration from current directory
+pub fn load_project_config() -> Result<ProjectConfig> {
+    let config_path = Path::new("omd.toml");
     
-    if !projects_dir.exists() {
-        return Ok(Vec::new());
+    if !config_path.exists() {
+        anyhow::bail!("No omd.toml found in current directory. Run 'omd init' to create one.");
     }
 
-    let mut projects = Vec::new();
-    let entries = fs::read_dir(&projects_dir)
-        .context("Failed to read projects directory")?;
-
-    for entry in entries {
-        let entry = entry?;
-        let path = entry.path();
-        
-        if let Some(ext) = path.extension() {
-            if ext == "toml" {
-                if let Some(stem) = path.file_stem() {
-                    projects.push(stem.to_string_lossy().to_string());
-                }
-            }
-        }
-    }
-
-    Ok(projects)
+    load_project_config_from_path(config_path)
 }
 
-/// Load environment variables from project .env file
-pub fn load_project_env(project: &str) -> Result<HashMap<String, String>> {
-    let config_dir = get_config_dir()?;
-    let global_config = load_global_config()?;
-    let projects_dir = config_dir.join(&global_config.global.projects_dir);
-    let env_path = projects_dir.join(project).join(".env");
-    let mut env_vars = HashMap::new();
-
-    if env_path.exists() {
-        let content = fs::read_to_string(&env_path)
-            .context("Failed to read .env file")?;
-
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-
-            if let Some((key, value)) = line.split_once('=') {
-                env_vars.insert(key.trim().to_string(), value.trim().to_string());
-            }
-        }
-    }
-
-    Ok(env_vars)
+/// Get the current directory name (for default project naming)
+pub fn get_current_dir_name() -> Result<String> {
+    let current_dir = env::current_dir()
+        .context("Failed to get current directory")?;
+    
+    let dir_name = current_dir
+        .file_name()
+        .context("Failed to get directory name")?
+        .to_string_lossy()
+        .to_string();
+    
+    Ok(dir_name)
 }

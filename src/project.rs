@@ -1,158 +1,229 @@
-mod compose;
 mod caddy;
 
+use std::env;
 use std::fs;
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
 
-use crate::config::{load_project_config, load_project_env, list_projects};
+use crate::config::{load_project_config, get_config_dir, load_global_config};
+use crate::docker_compose::ComposeInfo;
 use crate::network::{ensure_network, connect_caddy_to_network};
+use crate::registry::{PortRegistry, ProjectEntry};
 use crate::proxy;
 
-/// List all projects
+/// List all registered projects
 pub fn list() -> Result<()> {
-    println!("{}", "Available projects:".blue());
+    println!("{}", "Registered projects:".blue());
     println!();
 
-    let projects = list_projects()?;
+    let registry = PortRegistry::load()?;
+    let projects = registry.list_projects();
 
     if projects.is_empty() {
-        println!("{}", "No projects found".yellow());
+        println!("{}", "No projects registered".yellow());
+        println!();
+        println!("To register a project:");
+        println!("  1. Navigate to your project directory");
+        println!("  2. Run {}", "omd init".bright_white());
+        println!("  3. Run {}", "omd up".bright_white());
         return Ok(());
     }
 
-    for project_name in &projects {
-        if let Ok(config) = load_project_config(project_name) {
-            println!("  {} {}", "•".bright_white(), project_name.bright_white());
-            println!("    Domain: {}", config.project.domain);
-            println!("    Mode: {}", config.project.mode);
-            println!();
+    for entry in projects {
+        println!("  {} {}", "•".bright_white(), entry.name.bright_white());
+        println!("    Path: {}", entry.path.display());
+        println!("    Domain: {}", entry.domain);
+        println!("    Network: {}", entry.network);
+        if !entry.ports.is_empty() {
+            println!("    Ports: {}", format_ports(&entry.ports));
         }
+        println!();
     }
 
     Ok(())
 }
 
-/// Start a project
-pub fn up(project: &str) -> Result<()> {
-    println!("{} {}", "Starting project".blue(), project.bright_white());
+/// Configure and register a project (run from project directory)
+pub fn up() -> Result<()> {
+    println!("{}", "Configuring project...".blue());
 
-    // Load project configuration
-    let config = load_project_config(project)?;
+    // Load project configuration from current directory
+    let mut config = load_project_config()?;
+    
+    let current_dir = env::current_dir()
+        .context("Failed to get current directory")?;
+    
+    // Set project path
+    config.project.path = Some(current_dir.to_string_lossy().to_string());
 
     println!(
-        "{} Project: {} ({} mode)",
+        "{} Project: {}",
         "ℹ".blue(),
-        config.project.name,
-        config.project.mode
+        config.project.name.bright_white()
     );
     println!("{} Domain: {}", "ℹ".blue(), config.project.domain);
     println!("{} Network: {}", "ℹ".blue(), config.network.name);
 
-    // Ensure networks exist
-    let global_config = crate::config::load_global_config()?;
-    ensure_network(&global_config.global.caddy_network)?;
-    ensure_network(&config.network.name)?;
-
-    // Load environment variables
-    let env_vars = load_project_env(project)?;
-
-    // Generate Caddy configuration
-    caddy::generate_caddy_config(project, &config)?;
-
-    if config.project.mode == "managed" {
-        // Generate and start docker-compose
-        let compose_file = compose::generate_compose_file(project, &config, &env_vars)?;
-
-        println!("{} Starting services...", "ℹ".blue());
-        use std::process::Command;
-        let status = Command::new("docker")
-            .args(&["compose", "-f", &compose_file, "up", "-d"])
-            .status()
-            .context("Failed to start docker-compose")?;
-
-        if !status.success() {
-            anyhow::bail!("Failed to start services");
-        }
-
-        println!("{}", "✓ Services started".green());
-    } else {
-        println!(
-            "{} Proxy-only mode: services managed externally",
-            "ℹ".blue()
+    // Check for docker-compose.yml
+    let compose_path = Path::new("docker-compose.yml");
+    if !compose_path.exists() {
+        anyhow::bail!(
+            "No docker-compose.yml found in current directory.\n\
+            Please create a docker-compose.yml before running 'omd up'."
         );
     }
 
+    // Parse docker-compose.yml
+    println!("{} Parsing docker-compose.yml...", "ℹ".blue());
+    let compose_info = ComposeInfo::parse(compose_path)?;
+
+    // Get all host ports
+    let host_ports = compose_info.get_all_host_ports();
+    
+    if !host_ports.is_empty() {
+        println!("{} Found host ports: {}", "ℹ".blue(), format_ports(&host_ports));
+    } else {
+        println!("{} No host port mappings found", "ℹ".blue());
+    }
+
+    // Get all container names
+    let container_names = compose_info.get_all_container_names(&config.project.name);
+    println!("{} Container names: {}", "ℹ".blue(), container_names.join(", "));
+
+    // Check for port conflicts
+    let mut registry = PortRegistry::load()?;
+    let conflicts = registry.check_port_conflicts(&config.project.name, &host_ports);
+
+    if !conflicts.is_empty() {
+        println!();
+        println!("{} Port conflicts detected:", "✗".red());
+        for (port, project) in &conflicts {
+            println!(
+                "  Port {} is already used by project {}",
+                port.to_string().red(),
+                project.bright_white()
+            );
+        }
+        println!();
+        anyhow::bail!("Cannot proceed due to port conflicts. Please update your docker-compose.yml to use different ports.");
+    }
+
+    println!("{} No port conflicts", "✓".green());
+
+    // Ensure networks exist
+    let global_config = load_global_config()?;
+    
+    // Create all globally defined networks
+    for (network_name, _network_def) in &global_config.networks {
+        ensure_network(network_name)?;
+    }
+    
+    // Create project network
+    ensure_network(&config.network.name)?;
+
+    // Generate Caddy configuration
+    caddy::generate_caddy_config(&config, &compose_info)?;
+
     // Connect Caddy to project network
     connect_caddy_to_network(&config.network.name)?;
+
+    // Register project in port registry
+    let entry = ProjectEntry {
+        name: config.project.name.clone(),
+        path: current_dir.clone(),
+        domain: config.project.domain.clone(),
+        network: config.network.name.clone(),
+        ports: host_ports,
+        containers: container_names,
+    };
+    
+    registry.register_project(entry)?;
 
     // Reload Caddy
     proxy::reload()?;
 
     println!();
     println!(
-        "{} Project {} is ready!",
+        "{} Project {} is configured!",
         "✓".green(),
-        project.bright_white()
+        config.project.name.bright_white()
     );
     println!();
-    println!("Access your services at:");
-    println!("  https://{}", config.project.domain);
+    println!("Next steps:");
+    println!("  1. Run {} to start your services", "docker compose up -d".bright_white());
+    println!("  2. Access your project at: https://{}", config.project.domain);
+    if !config.caddy.routes.is_empty() {
+        println!();
+        println!("Custom routes:");
+        for (subdomain, _) in &config.caddy.routes {
+            println!("  - https://{}.{}", subdomain, config.project.domain);
+        }
+    }
 
     Ok(())
 }
 
-/// Stop a project
-pub fn down(project: &str) -> Result<()> {
-    println!("{} {}", "Stopping project".blue(), project.bright_white());
+/// Remove project configuration (run from project directory)
+pub fn down() -> Result<()> {
+    println!("{}", "Removing project configuration...".blue());
 
     // Load project configuration
-    let config = load_project_config(project)?;
+    let config = load_project_config()?;
 
-    if config.project.mode == "managed" {
-        let config_dir = crate::config::get_config_dir()?;
-        let compose_file = config_dir
-            .join("generated")
-            .join(format!("docker-compose-{}.yml", project));
-
-        if compose_file.exists() {
-            println!("{} Stopping services...", "ℹ".blue());
-            use std::process::Command;
-            let status = Command::new("docker")
-                .args(&["compose", "-f", &compose_file.to_string_lossy(), "down"])
-                .status()
-                .context("Failed to stop docker-compose")?;
-
-            if !status.success() {
-                anyhow::bail!("Failed to stop services");
-            }
-
-            println!("{}", "✓ Services stopped".green());
-        } else {
-            println!("{} No compose file found", "⚠".yellow());
-        }
-    } else {
-        println!(
-            "{} Proxy-only mode: services managed externally",
-            "ℹ".blue()
-        );
-    }
+    println!("{} Project: {}", "ℹ".blue(), config.project.name.bright_white());
 
     // Remove Caddy configuration
-    let config_dir = crate::config::get_config_dir()?;
-    let global_config = crate::config::load_global_config()?;
+    let config_dir = get_config_dir()?;
+    let global_config = load_global_config()?;
     let caddy_config = config_dir
         .join(&global_config.global.caddy_projects_dir)
-        .join(format!("{}.caddy", project));
+        .join(format!("{}.caddy", config.project.name));
 
     if caddy_config.exists() {
         fs::remove_file(&caddy_config)
             .context("Failed to remove Caddy configuration")?;
-        println!("{} Removed Caddy configuration", "ℹ".blue());
+        println!("{} Removed Caddy configuration", "✓".green());
     }
 
-    println!("{} Project {} stopped", "✓".green(), project.bright_white());
+    // Unregister from port registry
+    let mut registry = PortRegistry::load()?;
+    registry.unregister_project(&config.project.name)?;
+    println!("{} Unregistered project", "✓".green());
+
+    // Reload Caddy
+    proxy::reload()?;
+
+    println!();
+    println!(
+        "{} Project {} configuration removed",
+        "✓".green(),
+        config.project.name.bright_white()
+    );
+    println!();
+    println!("Note: Docker containers are still running.");
+    println!("Run {} to stop them.", "docker compose down".bright_white());
 
     Ok(())
+}
+
+/// Format a list of ports for display
+fn format_ports(ports: &[u16]) -> String {
+    if ports.is_empty() {
+        return "none".to_string();
+    }
+    
+    let mut formatted = ports
+        .iter()
+        .map(|p| p.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    
+    if formatted.len() > 60 {
+        formatted.truncate(60);
+        formatted.push_str("...");
+    }
+    
+    formatted
 }

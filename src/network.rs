@@ -73,6 +73,7 @@ pub fn list() -> Result<()> {
 }
 
 /// Remove a Docker network
+#[allow(dead_code)]
 pub fn remove(name: &str) -> Result<()> {
     // Check if network exists
     let output = Command::new("docker")
@@ -100,6 +101,7 @@ pub fn remove(name: &str) -> Result<()> {
 }
 
 /// Connect a container to a network
+#[allow(dead_code)]
 pub fn connect(network: &str, container: &str) -> Result<()> {
     // Check if network exists
     let output = Command::new("docker")
