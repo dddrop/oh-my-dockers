@@ -3,6 +3,10 @@
 
 set -e
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
+
 TEST_DIR="/tmp/oh-my-dockers-test-$$"
 export OH_MY_DOCKERS_DIR="$TEST_DIR"
 
