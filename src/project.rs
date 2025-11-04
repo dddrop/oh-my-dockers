@@ -120,7 +120,7 @@ pub fn down(project: &str) -> Result<()> {
             println!("{} Stopping services...", "ℹ".blue());
             use std::process::Command;
             let status = Command::new("docker")
-                .args(&["compose", "-f", compose_file.to_str().unwrap(), "down"])
+                .args(&["compose", "-f", &compose_file.to_string_lossy(), "down"])
                 .status()
                 .context("Failed to stop docker-compose")?;
 
