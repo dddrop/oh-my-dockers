@@ -80,6 +80,9 @@ enum ProjectCommands {
 }
 
 fn main() -> Result<()> {
+    // Ensure configuration directory exists on startup
+    config::ensure_config_dir()?;
+
     let cli = Cli::parse();
 
     match cli.command {
