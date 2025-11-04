@@ -22,6 +22,8 @@ pub fn generate_caddy_config(project: &str, config: &ProjectConfig) -> Result<()
 
     if config.project.mode == "managed" && config.caddy.auto_subdomains {
         // Generate subdomains for enabled services (HTTP only)
+        // Note: Caddy connects to container internal ports, which are not affected by port_offset
+        // Port offset only affects host port mappings, not container internal ports
         for (service_name, service_config) in &config.services {
             if !service_config.enabled {
                 continue;
@@ -34,6 +36,7 @@ pub fn generate_caddy_config(project: &str, config: &ProjectConfig) -> Result<()
 
             let subdomain = service_name;
             let target = format!("{}-{}", config.project.name, service_name);
+            // Get container internal port (not affected by port_offset)
             let port = get_service_port(service_name);
 
             let cert_name = config.project.domain.replace('.', "_");
@@ -84,6 +87,14 @@ fn is_http_service(service: &str) -> bool {
     }
 }
 
+/// Get the container internal port for a service
+/// 
+/// Note: This returns the container internal port, which is NOT affected by port_offset.
+/// Port offset only affects host port mappings (e.g., "${POSTGRES_PORT:-5432}:5432"),
+/// but Caddy connects to containers within the Docker network using internal ports.
+/// 
+/// For HTTP services used by Caddy (n8n, chroma, surrealdb, ollama), these ports are
+/// always the same regardless of port_offset configuration.
 fn get_service_port(service: &str) -> &'static str {
     match service {
         "postgres" => "5432",
