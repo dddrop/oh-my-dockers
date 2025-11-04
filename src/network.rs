@@ -3,8 +3,6 @@ use std::process::Command;
 use anyhow::{Context, Result};
 use colored::Colorize;
 
-use crate::config::load_global_config;
-
 /// Create a new Docker network
 pub fn create(name: &str) -> Result<()> {
     // Check if network exists
