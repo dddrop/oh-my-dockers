@@ -217,12 +217,6 @@ pub fn list_projects() -> Result<Vec<String>> {
     Ok(projects)
 }
 
-/// Get absolute path for a relative path in config directory
-pub fn get_config_path(relative_path: &str) -> Result<PathBuf> {
-    let config_dir = get_config_dir()?;
-    Ok(config_dir.join(relative_path))
-}
-
 /// Load environment variables from project .env file
 pub fn load_project_env(project: &str) -> Result<HashMap<String, String>> {
     let config_dir = get_config_dir()?;

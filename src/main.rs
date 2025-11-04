@@ -9,7 +9,7 @@ mod project;
 mod proxy;
 
 #[derive(Parser)]
-#[command(name = "oh-my-dockers")]
+#[command(name = "omd")]
 #[command(about = "Manage Docker development environments", long_about = None)]
 struct Cli {
     #[command(subcommand)]

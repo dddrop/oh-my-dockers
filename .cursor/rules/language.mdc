@@ -1,0 +1,19 @@
+---
+alwaysApply: true
+---
+
+# Language
+
+This repo uses English as natural language.
+
+## Code Generation
+
+- All code comments, documentation, and strings should be written in English
+- Variable names, function names, and class names should use English naming conventions
+- Error messages and log messages should be in English
+
+## Git Commits
+
+- All commit messages must be written in English
+- Use conventional commit format when appropriate (e.g., "feat:", "fix:", "docs:", etc.)
+
