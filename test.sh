@@ -23,7 +23,7 @@ trap cleanup EXIT
 # Helper function to run commands
 run_cmd() {
     echo "▶️  Running: cargo run --bin oh-my-dockers -- $*"
-    (cd /Users/dddrop/Development/oh-my-dockers && cargo run --bin oh-my-dockers -- "$@" 2>&1 | grep -v "warning:" | grep -v "Finished" | grep -v "Compiling" | grep -v "Running") || true
+    (cd "$PROJECT_ROOT" && cargo run --bin oh-my-dockers -- "$@" 2>&1 | grep -v "warning:" | grep -v "Finished" | grep -v "Compiling" | grep -v "Running") || true
     echo ""
 }
 
@@ -184,8 +184,8 @@ echo ""
 # Change to test source directory and run migration
 cd "$TEST_SOURCE_DIR"
 export OH_MY_DOCKERS_DIR="$TEST_DIR"
-(cd /Users/dddrop/Development/oh-my-dockers && cargo run --bin oh-my-dockers -- migrate 2>&1 | grep -v "warning:" | grep -v "Finished" | grep -v "Compiling" | grep -v "Running") || true
-cd /Users/dddrop/Development/oh-my-dockers
+(cd "$PROJECT_ROOT" && cargo run --bin oh-my-dockers -- migrate 2>&1 | grep -v "warning:" | grep -v "Finished" | grep -v "Compiling" | grep -v "Running") || true
+cd "$PROJECT_ROOT"
 
 # Verify migration
 MIGRATION_SUCCESS=true
