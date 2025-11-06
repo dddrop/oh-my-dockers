@@ -8,6 +8,7 @@ use colored::Colorize;
 use crate::{
     config::{get_config_dir, load_global_config, load_project_config},
     docker_compose::ComposeInfo,
+    hosts,
     network::{connect_caddy_to_network, ensure_network},
     proxy,
     registry::{PortRegistry, ProjectEntry},
@@ -157,6 +158,33 @@ pub fn up() -> Result<()> {
     // Reload Caddy
     proxy::reload()?;
 
+    // Update /etc/hosts with project domains
+    println!();
+    println!("{} Updating /etc/hosts...", "ℹ".blue());
+    
+    // Collect all domains (main domain + custom routes + auto-generated routes)
+    let mut domains = vec![config.project.domain.clone()];
+    
+    // Add custom routes
+    for (subdomain, _) in &config.caddy.routes {
+        domains.push(format!("{}.{}", subdomain, config.project.domain));
+    }
+    
+    // Add auto-generated routes (if no custom routes)
+    if config.caddy.routes.is_empty() {
+        for (service_name, service_info) in &compose_info.services {
+            // Only add services with container ports (HTTP services)
+            if !service_info.container_ports.is_empty() {
+                domains.push(format!("{}.{}", service_name, config.project.domain));
+            }
+        }
+    }
+    
+    if let Err(e) = hosts::add_project_domains(&config.project.name, &domains) {
+        // Log error but don't fail the entire operation
+        println!("{} Warning: Failed to update /etc/hosts: {}", "⚠".yellow(), e);
+    }
+
     println!();
     println!(
         "{} Project {} is configured!",
@@ -213,6 +241,13 @@ pub fn down() -> Result<()> {
     let mut registry = PortRegistry::load()?;
     registry.unregister_project(&config.project.name)?;
     println!("{} Unregistered project", "✓".green());
+
+    // Remove domains from /etc/hosts
+    println!("{} Removing project domains from /etc/hosts...", "ℹ".blue());
+    if let Err(e) = hosts::remove_project_domains(&config.project.name) {
+        // Log error but don't fail the entire operation
+        println!("{} Warning: Failed to update /etc/hosts: {}", "⚠".yellow(), e);
+    }
 
     // Reload Caddy
     proxy::reload()?;

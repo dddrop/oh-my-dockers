@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 mod caddy_manager;
 mod config;
 mod docker_compose;
+mod hosts;
 mod init;
 mod network;
 mod ports;
@@ -48,6 +49,11 @@ enum Commands {
     Project {
         #[command(subcommand)]
         subcommand: ProjectCommands,
+    },
+    /// Manage /etc/hosts entries
+    Hosts {
+        #[command(subcommand)]
+        subcommand: HostsCommands,
     },
 }
 
@@ -95,6 +101,12 @@ enum ProjectCommands {
     Up,
     /// Remove project configuration (run from project directory)
     Down,
+}
+
+#[derive(Subcommand)]
+enum HostsCommands {
+    /// List all domains managed by oh-my-dockers
+    List,
 }
 
 fn main() -> Result<()> {
@@ -159,6 +171,11 @@ fn main() -> Result<()> {
             }
             ProjectCommands::Down => {
                 project::down()?;
+            }
+        },
+        Commands::Hosts { subcommand } => match subcommand {
+            HostsCommands::List => {
+                hosts::list_managed_domains()?;
             }
         },
     }

@@ -75,14 +75,24 @@ fn ensure_caddyfile() -> Result<()> {
 
     println!("{} Creating Caddyfile...", "ℹ".blue());
 
-    let caddyfile_content = r#"{
+    // Check if HTTPS is enabled in global config
+    let global_config = crate::config::load_global_config().ok();
+    let enable_https = global_config
+        .as_ref()
+        .map(|c| c.global.enable_https)
+        .unwrap_or(false);
+
+    let auto_https_setting = if enable_https { "" } else { "    auto_https off\n" };
+    let caddyfile_content = format!(
+        r#"{{
     admin 0.0.0.0:2019
-    auto_https off
-}
+{}}}
 
 # Import all project configurations
 import /etc/caddy/projects/*.caddy
-"#;
+"#,
+        auto_https_setting
+    );
 
     fs::write(&caddyfile_path, caddyfile_content)
         .context("Failed to write Caddyfile")?;

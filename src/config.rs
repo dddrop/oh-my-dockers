@@ -57,6 +57,11 @@ caddy_network = "caddy-net"
 caddy_projects_dir = "caddy/projects"
 caddy_certs_dir = "caddy/certs"
 
+# Enable HTTPS for projects (default: false)
+# When true, uses 'tls internal' for automatic local certificates
+# Set to true to enable HTTPS with self-signed certificates for local domains
+enable_https = true
+
 [defaults]
 # Default timezone
 timezone = "Asia/Tokyo"
@@ -90,6 +95,10 @@ pub struct GlobalSettings {
     pub caddy_network: String,
     pub caddy_projects_dir: String,
     pub caddy_certs_dir: String,
+    /// Enable HTTPS for projects (default: false)
+    /// When true, uses 'tls internal' for automatic local certificates
+    #[serde(default)]
+    pub enable_https: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -148,7 +157,12 @@ pub fn load_global_config() -> Result<GlobalConfig> {
     let content = fs::read_to_string(&config_path)
         .context(format!("Failed to read config.toml from {:?}", config_path))?;
 
-    toml::from_str(&content).context("Failed to parse config.toml")
+    let config: GlobalConfig = toml::from_str(&content).context("Failed to parse config.toml")?;
+    
+    // Ensure enable_https defaults to false if not present (for backward compatibility)
+    // This is handled by #[serde(default)] but we keep this comment for clarity
+    
+    Ok(config)
 }
 
 /// Load project configuration from a specific path
