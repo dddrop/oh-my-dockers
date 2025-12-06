@@ -3,6 +3,8 @@
 //! This module handles the global configuration for oh-my-dockers,
 //! stored in ~/.oh-my-dockers/config.toml.
 
+mod migration;
+
 use std::{
     collections::HashMap,
     env, fs,
@@ -11,6 +13,10 @@ use std::{
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+
+/// Current configuration version
+/// Increment this when making breaking changes to the config structure
+pub const CONFIG_VERSION: u32 = 1;
 
 /// Get the configuration directory path
 /// Checks OH_MY_DOCKERS_DIR environment variable first,
@@ -41,17 +47,24 @@ pub fn ensure_config_dir() -> Result<PathBuf> {
             .context(format!("Failed to create subdirectory: {}", subdir))?;
     }
 
-    // Create default config.toml if it doesn't exist
+    // Handle config.toml
     let config_file = config_dir.join("config.toml");
     if !config_file.exists() {
+        // Create default config with current version
         create_default_config(&config_file)?;
+    } else {
+        // Check if migration is needed
+        migration::migrate_config_if_needed(&config_file)?;
     }
 
     Ok(config_dir)
 }
 
 fn create_default_config(config_path: &Path) -> Result<()> {
-    let default_config = r#"# Global Configuration for oh-my-dockers
+    let default_config = format!(
+        r#"# Global Configuration for oh-my-dockers
+# DO NOT EDIT the version field manually
+version = {}
 
 [global]
 # Caddy network name
@@ -74,11 +87,13 @@ timezone = "Asia/Tokyo"
 # Networks are automatically created when running 'omd project up'
 [networks]
 # Caddy reverse proxy network
-caddy-net = {}
+caddy-net = {{}}
 
 # You can define additional networks with custom settings:
-# my-network = { driver = "bridge", subnet = "172.20.0.0/16", gateway = "172.20.0.1" }
-"#;
+# my-network = {{ driver = "bridge", subnet = "172.20.0.0/16", gateway = "172.20.0.1" }}
+"#,
+        CONFIG_VERSION
+    );
 
     fs::write(config_path, default_config).context("Failed to write default config file")?;
 
@@ -88,11 +103,18 @@ caddy-net = {}
 /// Global configuration structure
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GlobalConfig {
+    /// Configuration file version for migration tracking
+    #[serde(default = "default_version")]
+    pub version: u32,
     pub global: GlobalSettings,
     #[serde(default)]
     pub defaults: DefaultSettings,
     #[serde(default)]
     pub networks: HashMap<String, NetworkDefinition>,
+}
+
+fn default_version() -> u32 {
+    0 // Old configs without version field are version 0
 }
 
 /// Global settings section
