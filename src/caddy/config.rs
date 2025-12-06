@@ -1,13 +1,17 @@
+//! Caddy configuration generation for projects
+//!
+//! This module handles generating Caddy reverse proxy configurations
+//! for projects based on their docker-compose.yml files.
+
 use std::fs;
 use std::process::Command;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
 
-use crate::{
-    config::{ProjectConfig, get_config_dir, load_global_config},
-    docker_compose::ComposeInfo,
-};
+use crate::config::{get_config_dir, load_global_config};
+use crate::docker::compose::ComposeInfo;
+use crate::project::config::ProjectConfig;
 
 /// Generate mkcert certificate for a project (main domain + wildcard)
 fn generate_project_certificate(
@@ -29,7 +33,9 @@ fn generate_project_certificate(
         .ok()
         .and_then(|output| {
             if output.status.success() {
-                String::from_utf8(output.stdout).ok().map(|s| s.trim().to_string())
+                String::from_utf8(output.stdout)
+                    .ok()
+                    .map(|s| s.trim().to_string())
             } else {
                 None
             }
@@ -84,10 +90,8 @@ fn generate_project_certificate(
     let latest_key = key_files.last().unwrap();
 
     // Copy certificate files to target location
-    fs::copy(latest_cert.path(), cert_file)
-        .context("Failed to copy certificate file")?;
-    fs::copy(latest_key.path(), key_file)
-        .context("Failed to copy key file")?;
+    fs::copy(latest_cert.path(), cert_file).context("Failed to copy certificate file")?;
+    fs::copy(latest_key.path(), key_file).context("Failed to copy key file")?;
 
     // Clean up temporary files
     let _ = fs::remove_file(latest_cert.path());
@@ -103,6 +107,7 @@ fn generate_project_certificate(
     Ok(())
 }
 
+/// Generate Caddy configuration for a project
 pub fn generate_caddy_config(config: &ProjectConfig, compose_info: &ComposeInfo) -> Result<()> {
     println!("{} Generating Caddy configuration...", "ℹ".blue());
 
@@ -119,14 +124,16 @@ pub fn generate_caddy_config(config: &ProjectConfig, compose_info: &ComposeInfo)
 
     // Check if HTTPS is enabled in global config
     let enable_https = global_config.global.enable_https;
-    
+
     // Generate project-level certificate if needed (main domain + wildcard)
     let project_cert_name = config.project.domain.replace('.', "_");
-    let project_cert_file = config_dir.join(&global_config.global.caddy_certs_dir)
+    let project_cert_file = config_dir
+        .join(&global_config.global.caddy_certs_dir)
         .join(format!("{}.crt", project_cert_name));
-    let project_key_file = config_dir.join(&global_config.global.caddy_certs_dir)
+    let project_key_file = config_dir
+        .join(&global_config.global.caddy_certs_dir)
         .join(format!("{}.key", project_cert_name));
-    
+
     if enable_https && (!project_cert_file.exists() || !project_key_file.exists()) {
         // Generate project certificate (main domain + wildcard)
         if let Err(e) = generate_project_certificate(
@@ -134,21 +141,31 @@ pub fn generate_caddy_config(config: &ProjectConfig, compose_info: &ComposeInfo)
             &project_cert_file,
             &project_key_file,
         ) {
-            println!("{} Failed to generate project certificate: {}", "⚠".yellow(), e);
-            println!("{} Falling back to Caddy's internal certificate", "ℹ".blue());
+            println!(
+                "{} Failed to generate project certificate: {}",
+                "⚠".yellow(),
+                e
+            );
+            println!(
+                "{} Falling back to Caddy's internal certificate",
+                "ℹ".blue()
+            );
         }
     }
-    
+
     // Helper function to get TLS configuration for a domain
     // All domains use the same project certificate
     let get_tls_config = |_domain: &str| -> Result<String> {
         if !enable_https {
             return Ok(String::new());
         }
-        
+
         if project_cert_file.exists() && project_key_file.exists() {
             // Use project certificate (works for all subdomains)
-            Ok(format!("    tls /certs/{}.crt /certs/{}.key\n", project_cert_name, project_cert_name))
+            Ok(format!(
+                "    tls /certs/{}.crt /certs/{}.key\n",
+                project_cert_name, project_cert_name
+            ))
         } else {
             // Fall back to Caddy's internal certificate
             Ok("    tls internal\n".to_string())

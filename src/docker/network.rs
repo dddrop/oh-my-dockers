@@ -1,7 +1,13 @@
+//! Docker network management
+//!
+//! This module handles creating, listing, and managing Docker networks.
+
 use std::process::Command;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
+
+use crate::caddy::CADDY_CONTAINER_NAME;
 
 /// Create a new Docker network
 pub fn create(name: &str) -> Result<()> {
@@ -189,7 +195,7 @@ pub fn connect_caddy_to_network(network: &str) -> Result<()> {
         .args(&[
             "ps",
             "--filter",
-            "name=oh-my-dockers-caddy",
+            &format!("name={}", CADDY_CONTAINER_NAME),
             "--format",
             "{{.Names}}",
         ])
@@ -198,7 +204,7 @@ pub fn connect_caddy_to_network(network: &str) -> Result<()> {
 
     let caddy_running = String::from_utf8_lossy(&output.stdout)
         .trim()
-        .contains("oh-my-dockers-caddy");
+        .contains(CADDY_CONTAINER_NAME);
 
     if !caddy_running {
         println!(
@@ -212,7 +218,7 @@ pub fn connect_caddy_to_network(network: &str) -> Result<()> {
 
     // Try to connect (ignore error if already connected)
     let _ = Command::new("docker")
-        .args(&["network", "connect", network, "oh-my-dockers-caddy"])
+        .args(&["network", "connect", network, CADDY_CONTAINER_NAME])
         .output();
 
     Ok(())

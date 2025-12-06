@@ -1,3 +1,7 @@
+//! Project initialization
+//!
+//! This module handles initializing a new project with omd.toml configuration.
+
 use std::{
     fs,
     io::{self, Write},
@@ -7,7 +11,7 @@ use std::{
 use anyhow::{Context, Result};
 use colored::Colorize;
 
-use crate::config::get_current_dir_name;
+use super::config::get_current_dir_name;
 
 /// Initialize a new omd.toml configuration in the current directory
 pub fn init() -> Result<()> {

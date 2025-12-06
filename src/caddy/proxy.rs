@@ -1,8 +1,15 @@
+//! Manual proxy rule management
+//!
+//! This module handles adding, removing, and listing manual proxy rules
+//! that are not tied to specific projects.
+
 use std::fs;
+use std::process::Command;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
 
+use super::CADDY_CONTAINER_NAME;
 use crate::config::{get_config_dir, load_global_config};
 
 /// Proxy rule storage
@@ -139,14 +146,12 @@ pub fn list() -> Result<()> {
 
 /// Reload Caddy configuration
 pub fn reload() -> Result<()> {
-    use std::process::Command;
-
     // Check if Caddy is running
     let output = Command::new("docker")
         .args(&[
             "ps",
             "--filter",
-            "name=oh-my-dockers-caddy",
+            &format!("name={}", CADDY_CONTAINER_NAME),
             "--format",
             "{{.Names}}",
         ])
@@ -155,7 +160,7 @@ pub fn reload() -> Result<()> {
 
     let caddy_running = String::from_utf8_lossy(&output.stdout)
         .trim()
-        .contains("oh-my-dockers-caddy");
+        .contains(CADDY_CONTAINER_NAME);
 
     if !caddy_running {
         println!("{} Caddy is not running, skipping reload", "⚠".yellow());
@@ -166,7 +171,7 @@ pub fn reload() -> Result<()> {
     let status = Command::new("docker")
         .args(&[
             "exec",
-            "oh-my-dockers-caddy",
+            CADDY_CONTAINER_NAME,
             "caddy",
             "reload",
             "--config",

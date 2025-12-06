@@ -1,18 +1,19 @@
-mod caddy;
+//! Project commands (up, down, list)
+//!
+//! This module contains the main project management commands.
 
 use std::{env, fs};
 
 use anyhow::{Context, Result};
 use colored::Colorize;
 
-use crate::{
-    config::{get_config_dir, load_global_config, load_project_config},
-    docker_compose::ComposeInfo,
-    hosts,
-    network::{connect_caddy_to_network, ensure_network},
-    proxy,
-    registry::{PortRegistry, ProjectEntry},
-};
+use super::config::load_project_config;
+use super::registry::{PortRegistry, ProjectEntry};
+use crate::caddy;
+use crate::config::{get_config_dir, load_global_config};
+use crate::docker::compose::ComposeInfo;
+use crate::docker::network::{connect_caddy_to_network, ensure_network};
+use crate::system::hosts;
 
 /// List all registered projects
 pub fn list() -> Result<()> {
@@ -40,7 +41,7 @@ pub fn list() -> Result<()> {
         if !entry.ports.is_empty() {
             println!("    Ports: {}", format_ports(&entry.ports));
         }
-            println!();
+        println!();
     }
 
     Ok(())
@@ -125,20 +126,20 @@ pub fn up() -> Result<()> {
 
     // Ensure networks exist
     let global_config = load_global_config()?;
-    
+
     // Create all globally defined networks
     for (network_name, _network_def) in &global_config.networks {
         ensure_network(network_name)?;
     }
-    
+
     // Create project network
-        ensure_network(&config.network.name)?;
+    ensure_network(&config.network.name)?;
 
     // Auto-start Caddy if not running
-    crate::caddy_manager::auto_start_if_needed()?;
+    caddy::manager::auto_start_if_needed()?;
 
     // Generate Caddy configuration
-    caddy::generate_caddy_config(&config, &compose_info)?;
+    caddy::config::generate_caddy_config(&config, &compose_info)?;
 
     // Connect Caddy to project network
     connect_caddy_to_network(&config.network.name)?;
@@ -156,20 +157,20 @@ pub fn up() -> Result<()> {
     registry.register_project(entry)?;
 
     // Reload Caddy
-    proxy::reload()?;
+    caddy::proxy::reload()?;
 
     // Update /etc/hosts with project domains
     println!();
     println!("{} Updating /etc/hosts...", "ℹ".blue());
-    
+
     // Collect all domains (main domain + custom routes + auto-generated routes)
     let mut domains = vec![config.project.domain.clone()];
-    
+
     // Add custom routes
     for (subdomain, _) in &config.caddy.routes {
         domains.push(format!("{}.{}", subdomain, config.project.domain));
     }
-    
+
     // Add auto-generated routes (if no custom routes)
     if config.caddy.routes.is_empty() {
         for (service_name, service_info) in &compose_info.services {
@@ -179,10 +180,14 @@ pub fn up() -> Result<()> {
             }
         }
     }
-    
+
     if let Err(e) = hosts::add_project_domains(&config.project.name, &domains) {
         // Log error but don't fail the entire operation
-        println!("{} Warning: Failed to update /etc/hosts: {}", "⚠".yellow(), e);
+        println!(
+            "{} Warning: Failed to update /etc/hosts: {}",
+            "⚠".yellow(),
+            e
+        );
     }
 
     println!();
@@ -219,11 +224,11 @@ pub fn down() -> Result<()> {
     // Load project configuration
     let config = load_project_config()?;
 
-        println!(
+    println!(
         "{} Project: {}",
         "ℹ".blue(),
         config.project.name.bright_white()
-        );
+    );
 
     // Remove Caddy configuration
     let config_dir = get_config_dir()?;
@@ -246,11 +251,15 @@ pub fn down() -> Result<()> {
     println!("{} Removing project domains from /etc/hosts...", "ℹ".blue());
     if let Err(e) = hosts::remove_project_domains(&config.project.name) {
         // Log error but don't fail the entire operation
-        println!("{} Warning: Failed to update /etc/hosts: {}", "⚠".yellow(), e);
+        println!(
+            "{} Warning: Failed to update /etc/hosts: {}",
+            "⚠".yellow(),
+            e
+        );
     }
 
     // Reload Caddy
-    proxy::reload()?;
+    caddy::proxy::reload()?;
 
     println!();
     println!(

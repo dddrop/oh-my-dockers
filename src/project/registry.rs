@@ -1,3 +1,8 @@
+//! Project registry
+//!
+//! This module manages the registry of projects and their port allocations.
+//! The registry is stored as a JSON file in the configuration directory.
+
 use std::{collections::HashMap, fs, path::PathBuf};
 
 use anyhow::{Context, Result};
@@ -132,6 +137,12 @@ impl PortRegistry {
     }
 }
 
+impl Default for PortRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,7 +160,7 @@ mod tests {
             ports: vec![5432, 6379, 8080],
             containers: vec!["project-a-postgres".to_string()],
         };
-        registry.register_project(entry1).unwrap();
+        registry.projects.insert(entry1.name.clone(), entry1);
 
         // Check for conflicts with overlapping ports
         let conflicts = registry.check_port_conflicts("project-b", &[5432, 3000]);
@@ -175,7 +186,7 @@ mod tests {
             containers: vec!["test-postgres".to_string()],
         };
 
-        registry.register_project(entry.clone()).unwrap();
+        registry.projects.insert(entry.name.clone(), entry);
 
         assert!(registry.is_registered("test-project"));
         assert!(registry.is_registered_by_path(&PathBuf::from("/path/to/test")));

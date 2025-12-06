@@ -1,3 +1,8 @@
+//! Docker Compose file parsing
+//!
+//! This module handles parsing docker-compose.yml files to extract
+//! service information, port mappings, and network configurations.
+
 use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::{Context, Result};

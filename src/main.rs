@@ -1,113 +1,23 @@
-use anyhow::Result;
-use clap::{Parser, Subcommand};
+//! oh-my-dockers (omd) - Docker development environment management CLI
+//!
+//! A powerful CLI tool for managing Docker development environments with
+//! automatic reverse proxy configuration, network management, and port
+//! conflict detection.
 
-mod caddy_manager;
+use anyhow::Result;
+use clap::Parser;
+
+mod caddy;
+mod cli;
 mod config;
-mod docker_compose;
-mod hosts;
-mod init;
-mod network;
+mod docker;
 mod ports;
 mod project;
-mod proxy;
-mod registry;
+mod system;
 
-#[derive(Parser)]
-#[command(name = "omd")]
-#[command(about = "Manage Docker development environments", long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// Initialize omd.toml in current directory
-    Init,
-    /// Manage Caddy reverse proxy
-    Caddy {
-        #[command(subcommand)]
-        subcommand: CaddyCommands,
-    },
-    /// Manage Docker networks
-    Network {
-        #[command(subcommand)]
-        subcommand: NetworkCommands,
-    },
-    /// Manage reverse proxy configurations
-    Proxy {
-        #[command(subcommand)]
-        subcommand: ProxyCommands,
-    },
-    /// Display port mappings
-    Ports {
-        /// Show port mappings for a specific network
-        #[arg(value_name = "NETWORK")]
-        network: Option<String>,
-    },
-    /// Manage projects
-    Project {
-        #[command(subcommand)]
-        subcommand: ProjectCommands,
-    },
-    /// Manage /etc/hosts entries
-    Hosts {
-        #[command(subcommand)]
-        subcommand: HostsCommands,
-    },
-}
-
-#[derive(Subcommand)]
-enum CaddyCommands {
-    /// Start Caddy container
-    Start,
-    /// Stop Caddy container
-    Stop,
-    /// Restart Caddy container
-    Restart,
-    /// Show Caddy status
-    Status,
-    /// Show Caddy logs
-    Logs {
-        /// Follow log output
-        #[arg(short, long)]
-        follow: bool,
-    },
-}
-
-#[derive(Subcommand)]
-enum NetworkCommands {
-    /// List all networks
-    List,
-}
-
-#[derive(Subcommand)]
-enum ProxyCommands {
-    /// Add a reverse proxy rule
-    Add { domain: String, target: String },
-    /// Remove a reverse proxy rule
-    Remove { domain: String },
-    /// List all proxy rules
-    List,
-    /// Reload Caddy configuration
-    Reload,
-}
-
-#[derive(Subcommand)]
-enum ProjectCommands {
-    /// List all registered projects
-    List,
-    /// Configure project (run from project directory)
-    Up,
-    /// Remove project configuration (run from project directory)
-    Down,
-}
-
-#[derive(Subcommand)]
-enum HostsCommands {
-    /// List all domains managed by oh-my-dockers
-    List,
-}
+use cli::{
+    CaddyCommands, Cli, Commands, HostsCommands, NetworkCommands, ProjectCommands, ProxyCommands,
+};
 
 fn main() -> Result<()> {
     // Ensure configuration directory exists on startup
@@ -117,42 +27,42 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Init => {
-            init::init()?;
+            project::init::init()?;
         }
         Commands::Caddy { subcommand } => match subcommand {
             CaddyCommands::Start => {
-                caddy_manager::start()?;
+                caddy::manager::start()?;
             }
             CaddyCommands::Stop => {
-                caddy_manager::stop()?;
+                caddy::manager::stop()?;
             }
             CaddyCommands::Restart => {
-                caddy_manager::restart()?;
+                caddy::manager::restart()?;
             }
             CaddyCommands::Status => {
-                caddy_manager::status()?;
+                caddy::manager::status()?;
             }
             CaddyCommands::Logs { follow } => {
-                caddy_manager::logs(follow)?;
+                caddy::manager::logs(follow)?;
             }
         },
         Commands::Network { subcommand } => match subcommand {
             NetworkCommands::List => {
-                network::list()?;
+                docker::network::list()?;
             }
         },
         Commands::Proxy { subcommand } => match subcommand {
             ProxyCommands::Add { domain, target } => {
-                proxy::add(&domain, &target)?;
+                caddy::proxy::add(&domain, &target)?;
             }
             ProxyCommands::Remove { domain } => {
-                proxy::remove(&domain)?;
+                caddy::proxy::remove(&domain)?;
             }
             ProxyCommands::List => {
-                proxy::list()?;
+                caddy::proxy::list()?;
             }
             ProxyCommands::Reload => {
-                proxy::reload()?;
+                caddy::proxy::reload()?;
             }
         },
         Commands::Ports { network } => {
@@ -164,18 +74,18 @@ fn main() -> Result<()> {
         }
         Commands::Project { subcommand } => match subcommand {
             ProjectCommands::List => {
-                project::list()?;
+                project::commands::list()?;
             }
             ProjectCommands::Up => {
-                project::up()?;
+                project::commands::up()?;
             }
             ProjectCommands::Down => {
-                project::down()?;
+                project::commands::down()?;
             }
         },
         Commands::Hosts { subcommand } => match subcommand {
             HostsCommands::List => {
-                hosts::list_managed_domains()?;
+                system::hosts::list_managed_domains()?;
             }
         },
     }

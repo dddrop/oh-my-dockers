@@ -1,20 +1,32 @@
+//! Caddy container lifecycle management
+//!
+//! This module handles starting, stopping, and monitoring the Caddy container.
+
 use std::fs;
+use std::io::{self, Write};
 use std::process::Command;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
 
-use crate::config::get_config_dir;
+use super::{CADDY_CONTAINER_NAME, CADDY_NETWORK_NAME, OMD_SERVICE_LABEL};
+use crate::config::{get_config_dir, load_global_config};
 
 /// Check if Caddy container is running
 pub fn is_running() -> bool {
     let output = Command::new("docker")
-        .args(&["ps", "--filter", "name=oh-my-dockers-caddy", "--format", "{{.Names}}"])
+        .args(&[
+            "ps",
+            "--filter",
+            &format!("name={}", CADDY_CONTAINER_NAME),
+            "--format",
+            "{{.Names}}",
+        ])
         .output();
 
     if let Ok(output) = output {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        stdout.contains("oh-my-dockers-caddy")
+        stdout.contains(CADDY_CONTAINER_NAME)
     } else {
         false
     }
@@ -23,12 +35,19 @@ pub fn is_running() -> bool {
 /// Check if Caddy container exists (running or stopped)
 fn container_exists() -> bool {
     let output = Command::new("docker")
-        .args(&["ps", "-a", "--filter", "name=oh-my-dockers-caddy", "--format", "{{.Names}}"])
+        .args(&[
+            "ps",
+            "-a",
+            "--filter",
+            &format!("name={}", CADDY_CONTAINER_NAME),
+            "--format",
+            "{{.Names}}",
+        ])
         .output();
 
     if let Ok(output) = output {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        stdout.contains("oh-my-dockers-caddy")
+        stdout.contains(CADDY_CONTAINER_NAME)
     } else {
         false
     }
@@ -38,7 +57,7 @@ fn container_exists() -> bool {
 fn remove_container() -> Result<()> {
     println!("{} Removing existing container...", "ℹ".blue());
     let status = Command::new("docker")
-        .args(&["rm", "-f", "oh-my-dockers-caddy"])
+        .args(&["rm", "-f", CADDY_CONTAINER_NAME])
         .status()
         .context("Failed to remove container")?;
 
@@ -53,7 +72,7 @@ fn remove_container() -> Result<()> {
 fn start_existing_container() -> Result<()> {
     println!("{} Starting existing container...", "ℹ".blue());
     let status = Command::new("docker")
-        .args(&["start", "oh-my-dockers-caddy"])
+        .args(&["start", CADDY_CONTAINER_NAME])
         .status()
         .context("Failed to start container")?;
 
@@ -76,13 +95,17 @@ fn ensure_caddyfile() -> Result<()> {
     println!("{} Creating Caddyfile...", "ℹ".blue());
 
     // Check if HTTPS is enabled in global config
-    let global_config = crate::config::load_global_config().ok();
+    let global_config = load_global_config().ok();
     let enable_https = global_config
         .as_ref()
         .map(|c| c.global.enable_https)
         .unwrap_or(false);
 
-    let auto_https_setting = if enable_https { "" } else { "    auto_https off\n" };
+    let auto_https_setting = if enable_https {
+        ""
+    } else {
+        "    auto_https off\n"
+    };
     let caddyfile_content = format!(
         r#"{{
     admin 0.0.0.0:2019
@@ -94,8 +117,7 @@ import /etc/caddy/projects/*.caddy
         auto_https_setting
     );
 
-    fs::write(&caddyfile_path, caddyfile_content)
-        .context("Failed to write Caddyfile")?;
+    fs::write(&caddyfile_path, caddyfile_content).context("Failed to write Caddyfile")?;
 
     println!("{} Caddyfile created", "✓".green());
 
@@ -105,19 +127,19 @@ import /etc/caddy/projects/*.caddy
 /// Ensure caddy-net network exists
 fn ensure_caddy_network() -> Result<()> {
     let output = Command::new("docker")
-        .args(&["network", "inspect", "caddy-net"])
+        .args(&["network", "inspect", CADDY_NETWORK_NAME])
         .output()
         .context("Failed to check network")?;
 
     if !output.status.success() {
-        println!("{} Creating caddy-net network...", "ℹ".blue());
+        println!("{} Creating {} network...", "ℹ".blue(), CADDY_NETWORK_NAME);
         let status = Command::new("docker")
-            .args(&["network", "create", "caddy-net"])
+            .args(&["network", "create", CADDY_NETWORK_NAME])
             .status()
             .context("Failed to create network")?;
 
         if !status.success() {
-            anyhow::bail!("Failed to create caddy-net network");
+            anyhow::bail!("Failed to create {} network", CADDY_NETWORK_NAME);
         }
 
         println!("{} Network created", "✓".green());
@@ -143,28 +165,27 @@ pub fn start() -> Result<()> {
         println!("  2. {} - Remove and recreate container", "Reset".yellow());
         println!();
         print!("Enter choice (1 or 2): ");
-        
-        use std::io::{self, Write};
+
         io::stdout().flush()?;
-        
+
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
-        
+
         match input.trim() {
             "1" => {
                 start_existing_container()?;
-                
+
                 // Wait a bit for Caddy to start
                 std::thread::sleep(std::time::Duration::from_secs(2));
-                
+
                 if is_running() {
                     println!("{}", "✓ Caddy started successfully".green());
                     println!();
                     println!("Caddy Admin API: http://localhost:2019");
-                    println!("View logs: docker logs oh-my-dockers-caddy -f");
+                    println!("View logs: docker logs {} -f", CADDY_CONTAINER_NAME);
                 } else {
                     println!("{}", "⚠ Caddy may have failed to start".yellow());
-                    println!("Check logs: docker logs oh-my-dockers-caddy");
+                    println!("Check logs: docker logs {}", CADDY_CONTAINER_NAME);
                 }
                 return Ok(());
             }
@@ -193,25 +214,38 @@ pub fn start() -> Result<()> {
     let projects_path = config_dir.join("caddy/projects");
 
     println!("{} Starting Caddy container...", "ℹ".blue());
-    
+
     // Start Caddy using docker run
     let status = Command::new("docker")
         .args(&[
             "run",
             "-d",
-            "--name", "oh-my-dockers-caddy",
-            "--restart", "unless-stopped",
-            "-p", "80:80",
-            "-p", "443:443",
-            "-p", "443:443/udp",
-            "-v", &format!("{}:/etc/caddy/Caddyfile:ro", caddyfile_path.display()),
-            "-v", &format!("{}:/certs:ro", certs_path.display()),
-            "-v", &format!("{}:/etc/caddy/projects:ro", projects_path.display()),
-            "-v", "caddy_data:/data",
-            "-v", "caddy_config:/config",
-            "--network", "caddy-net",
-            "-e", "CADDY_ADMIN=0.0.0.0:2019",
-            "--label", "com.oh-my-dockers.service=caddy",
+            "--name",
+            CADDY_CONTAINER_NAME,
+            "--restart",
+            "unless-stopped",
+            "-p",
+            "80:80",
+            "-p",
+            "443:443",
+            "-p",
+            "443:443/udp",
+            "-v",
+            &format!("{}:/etc/caddy/Caddyfile:ro", caddyfile_path.display()),
+            "-v",
+            &format!("{}:/certs:ro", certs_path.display()),
+            "-v",
+            &format!("{}:/etc/caddy/projects:ro", projects_path.display()),
+            "-v",
+            "caddy_data:/data",
+            "-v",
+            "caddy_config:/config",
+            "--network",
+            CADDY_NETWORK_NAME,
+            "-e",
+            "CADDY_ADMIN=0.0.0.0:2019",
+            "--label",
+            &format!("{}=caddy", OMD_SERVICE_LABEL),
             "caddy:latest",
         ])
         .status()
@@ -228,10 +262,10 @@ pub fn start() -> Result<()> {
         println!("{}", "✓ Caddy started successfully".green());
         println!();
         println!("Caddy Admin API: http://localhost:2019");
-        println!("View logs: docker logs oh-my-dockers-caddy -f");
+        println!("View logs: docker logs {} -f", CADDY_CONTAINER_NAME);
     } else {
         println!("{}", "⚠ Caddy may have failed to start".yellow());
-        println!("Check logs: docker logs oh-my-dockers-caddy");
+        println!("Check logs: docker logs {}", CADDY_CONTAINER_NAME);
     }
 
     Ok(())
@@ -247,7 +281,7 @@ pub fn stop() -> Result<()> {
     println!("{}", "Stopping Caddy...".blue());
 
     let status = Command::new("docker")
-        .args(&["stop", "oh-my-dockers-caddy"])
+        .args(&["stop", CADDY_CONTAINER_NAME])
         .status()
         .context("Failed to stop Caddy")?;
 
@@ -270,7 +304,7 @@ pub fn restart() -> Result<()> {
     println!("{}", "Restarting Caddy...".blue());
 
     let status = Command::new("docker")
-        .args(&["restart", "oh-my-dockers-caddy"])
+        .args(&["restart", CADDY_CONTAINER_NAME])
         .status()
         .context("Failed to restart Caddy")?;
 
@@ -296,7 +330,7 @@ pub fn status() -> Result<()> {
             .args(&[
                 "ps",
                 "--filter",
-                "name=oh-my-dockers-caddy",
+                &format!("name={}", CADDY_CONTAINER_NAME),
                 "--format",
                 "table {{.Status}}\t{{.Ports}}",
             ])
@@ -310,7 +344,7 @@ pub fn status() -> Result<()> {
 
         println!();
         println!("Admin API: http://localhost:2019");
-        println!("Logs: docker logs oh-my-dockers-caddy -f");
+        println!("Logs: docker logs {} -f", CADDY_CONTAINER_NAME);
     } else {
         println!("  Status: {}", "Not running".red());
         println!();
@@ -331,7 +365,7 @@ pub fn logs(follow: bool) -> Result<()> {
     if follow {
         args.push("-f");
     }
-    args.push("oh-my-dockers-caddy");
+    args.push(CADDY_CONTAINER_NAME);
 
     let status = Command::new("docker")
         .args(&args)
@@ -360,4 +394,3 @@ pub fn auto_start_if_needed() -> Result<()> {
 
     Ok(())
 }
-
