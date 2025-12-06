@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+---
+
+# Time
+
+## Document Timestamps
+
+If time is involved, please use MCP's `get_current_time` to get the time in `Asia/Tokyo`.
+
+The time in the document's meta information is usually in the format: `yyyy-MM-dd HH:mm`.
+
+## Content Description
+
+When there is no explicit request to estimate time, please do not estimate time, because with the use of AI, time estimation has become less important.
