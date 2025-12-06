@@ -105,6 +105,14 @@ impl PortRegistry {
         conflicts
     }
 
+    /// Get all ports used by all registered projects
+    pub fn get_all_used_ports(&self) -> Vec<u16> {
+        self.projects
+            .values()
+            .flat_map(|p| p.ports.iter().copied())
+            .collect()
+    }
+
     /// Get a project entry by name
     #[allow(dead_code)]
     pub fn get_project(&self, project_name: &str) -> Option<&ProjectEntry> {

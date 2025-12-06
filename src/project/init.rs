@@ -1,6 +1,7 @@
 //! Project initialization
 //!
-//! This module handles initializing a new project with omd.toml configuration.
+//! This module handles initializing a new project with omd.toml configuration
+//! and optionally generating a docker-compose.yml file.
 
 use std::{
     fs,
@@ -11,7 +12,11 @@ use std::{
 use anyhow::{Context, Result};
 use colored::Colorize;
 
+use super::compose_generator::{
+    generate_compose_file, prompt_service_selection, resolve_service_ports,
+};
 use super::config::get_current_dir_name;
+use super::registry::PortRegistry;
 
 /// Initialize a new omd.toml configuration in the current directory
 pub fn init() -> Result<()> {
@@ -47,23 +52,65 @@ pub fn init() -> Result<()> {
     let network = prompt_with_default("Network name", &format!("{}-net", project_name))?;
     let compose_file = prompt_with_default("Docker Compose file", "docker-compose.yml")?;
 
-    // Validate compose file exists
-    if !Path::new(&compose_file).exists() {
+    // Check if compose file exists
+    let compose_path = Path::new(&compose_file);
+    let mut compose_created = false;
+
+    if !compose_path.exists() {
+        println!();
         println!(
-            "{} Warning: {} does not exist yet",
-            "⚠".yellow(),
+            "{} {} does not exist",
+            "ℹ".blue(),
             compose_file.bright_white()
         );
-        print!("Continue anyway? [y/N]: ");
+        print!("Create docker-compose.yml with common services? [Y/n]: ");
         io::stdout().flush()?;
+
         let mut confirm = String::new();
         io::stdin().read_line(&mut confirm)?;
-        if !confirm.trim().eq_ignore_ascii_case("y") {
-            println!("{}", "Aborted".yellow());
-            return Ok(());
+
+        let should_create = confirm.trim().is_empty()
+            || confirm.trim().eq_ignore_ascii_case("y")
+            || confirm.trim().eq_ignore_ascii_case("yes");
+
+        if should_create {
+            // Show service selection
+            let selections = prompt_service_selection()?;
+
+            if !selections.is_empty() {
+                // Load registry to check port conflicts
+                let registry = PortRegistry::load().unwrap_or_default();
+
+                // Resolve ports for selected services
+                let selected_services = resolve_service_ports(&selections, &registry);
+
+                // Generate docker-compose.yml
+                generate_compose_file(compose_path, &project_name, &network, &selected_services)?;
+
+                let service_names: Vec<&str> = selected_services
+                    .iter()
+                    .map(|s| s.template.display_name)
+                    .collect();
+
+                println!();
+                println!(
+                    "{} Created {} with: {}",
+                    "✓".green(),
+                    compose_file.bright_white(),
+                    service_names.join(", ")
+                );
+                compose_created = true;
+            } else {
+                println!(
+                    "{} No services selected, skipping docker-compose.yml creation",
+                    "ℹ".blue()
+                );
+            }
         }
     }
 
+    // Ask about Caddy routes configuration
+    println!();
     print!("Do you want to configure Caddy routes now? [y/N]: ");
     io::stdout().flush()?;
     let mut input = String::new();
@@ -127,15 +174,27 @@ routes = {}
     println!("{} Created {}", "✓".green(), "omd.toml".bright_white());
     println!();
     println!("Next steps:");
-    println!("  1. Create or update your docker-compose.yml");
-    println!(
-        "  2. Run {} to configure Caddy and check for port conflicts",
-        "omd up".bright_white()
-    );
-    println!(
-        "  3. Run {} to start your services",
-        "docker compose up -d".bright_white()
-    );
+
+    if !compose_created && !compose_path.exists() {
+        println!("  1. Create your docker-compose.yml");
+        println!(
+            "  2. Run {} to configure Caddy and check for port conflicts",
+            "omd project up".bright_white()
+        );
+        println!(
+            "  3. Run {} to start your services",
+            "docker compose up -d".bright_white()
+        );
+    } else {
+        println!(
+            "  1. Run {} to configure Caddy and check for port conflicts",
+            "omd project up".bright_white()
+        );
+        println!(
+            "  2. Run {} to start your services",
+            "docker compose up -d".bright_white()
+        );
+    }
 
     Ok(())
 }
