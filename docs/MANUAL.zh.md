@@ -80,13 +80,10 @@ omd init
 # 3. 确保 docker-compose.yml 存在
 # （你现有的 docker-compose.yml 文件）
 
-# 4. 配置基础设施（网络、Caddy 等）
-omd up
+# 4. 配置基础设施并启动容器
+omd project up
 
-# 5. 启动容器
-docker compose up -d
-
-# 6. 访问服务
+# 5. 访问服务
 # https://your-project.local
 ```
 
@@ -131,17 +128,16 @@ networks:
   my-api-net:
 EOF
 
-# 配置基础设施
-omd up
+# 配置基础设施并启动容器
+omd project up
 # ℹ 正在解析 docker-compose.yml...
 # ℹ 发现主机端口: 5432, 3000
 # ✓ 无端口冲突
 # ✓ 网络已创建
 # ✓ Caddy 配置已生成
 # ✓ 项目 my-api 配置完成！
-
-# 启动服务
-docker compose up -d
+# ℹ 正在启动容器...
+# ✓ 容器启动成功
 
 # 通过 https://api.my-api.local 访问
 ```
@@ -213,11 +209,11 @@ omd init
 
 ### omd project up
 
-配置项目基础设施（从项目目录运行）。
+配置项目基础设施并启动容器（从项目目录运行）。
 
 ```bash
 cd /path/to/project
-omd up
+omd project up
 ```
 
 **执行内容：**
@@ -228,25 +224,39 @@ omd up
 5. **如果 Caddy 未运行则自动启动**
 6. 生成 Caddy 反向代理配置
 7. 在全局注册表中注册项目
-
-**重要**：这不会启动项目容器。需要单独运行 `docker compose up -d`。
+8. **启动容器**（`docker compose up -d`）
 
 ### omd project down
 
-删除项目配置（从项目目录运行）。
+停止容器（从项目目录运行）。
 
 ```bash
 cd /path/to/project
-omd down
+omd project down
 ```
 
 **执行内容：**
 1. 从当前目录读取 `omd.toml`
-2. 删除 Caddy 配置
-3. 从全局注册表注销项目
-4. 重新加载 Caddy
+2. 停止容器（`docker compose down`）
 
-**重要**：这不会停止容器。需要单独运行 `docker compose down`。
+**注意**：这只会停止容器。配置保持不变。如需同时删除配置，请使用 `omd project remove`。
+
+### omd project remove
+
+停止容器并删除所有项目配置（从项目目录运行）。
+
+```bash
+cd /path/to/project
+omd project remove
+```
+
+**执行内容：**
+1. 从当前目录读取 `omd.toml`
+2. 停止容器（`docker compose down`）
+3. 删除 Caddy 配置
+4. 从全局注册表注销项目
+5. 从 `/etc/hosts` 移除域名
+6. 重新加载 Caddy
 
 ### omd project list
 
@@ -455,15 +465,13 @@ services:
 # 项目 1
 cd ~/projects/api-service
 omd init
-omd up
-docker compose up -d
+omd project up
 # 通过 https://api-service.local 访问
 
 # 项目 2
 cd ~/projects/web-app
 omd init
-omd up
-docker compose up -d
+omd project up
 # 通过 https://web-app.local 访问
 ```
 
@@ -553,23 +561,21 @@ domain = "my-awesome-app.local"
 name = "my-awesome-app-net"
 ```
 
-### 5. 启动前检查
+### 5. 使用 omd project up
 
-在 `docker compose up -d` 之前始终运行 `omd up`：
+使用 `omd project up` 一条命令配置并启动项目：
 
 ```bash
-omd up              # 配置基础设施
-docker compose up -d     # 启动容器
+omd project up   # 配置基础设施并启动容器
 ```
 
 ### 6. 删除后清理
 
-删除项目时，首先运行 `omd down`：
+删除项目时，使用 `omd project remove`：
 
 ```bash
 cd /path/to/project
-docker compose down  # 停止容器
-omd down             # 删除配置
+omd project remove   # 停止容器并删除配置
 cd ..
 rm -rf project       # 删除目录
 ```
@@ -612,7 +618,7 @@ git add omd.toml
 omd project list
 ```
 
-使用 `omd down` 删除过时的条目。
+使用 `omd project remove` 删除过时的条目。
 
 ---
 

@@ -80,13 +80,10 @@ omd init
 # 3. Create or ensure docker-compose.yml exists
 # (your existing docker-compose.yml file)
 
-# 4. Configure infrastructure (networks, Caddy, etc.)
-omd up
+# 4. Configure infrastructure and start containers
+omd project up
 
-# 5. Start your containers
-docker compose up -d
-
-# 6. Access your services
+# 5. Access your services
 # https://your-project.local
 ```
 
@@ -131,17 +128,16 @@ networks:
   my-api-net:
 EOF
 
-# Configure infrastructure
-omd up
+# Configure infrastructure and start containers
+omd project up
 # ℹ Parsing docker-compose.yml...
 # ℹ Found host ports: 5432, 3000
 # ✓ No port conflicts
 # ✓ Network created
 # ✓ Caddy configuration generated
 # ✓ Project my-api is configured!
-
-# Start services
-docker compose up -d
+# ℹ Starting containers...
+# ✓ Containers started successfully
 
 # Access at https://api.my-api.local
 ```
@@ -298,11 +294,11 @@ omd init
 
 ### omd project up
 
-Configure project infrastructure (run from project directory).
+Configure project infrastructure and start containers (run from project directory).
 
 ```bash
 cd /path/to/project
-omd up
+omd project up
 ```
 
 **What it does:**
@@ -313,8 +309,7 @@ omd up
 5. **Automatically starts Caddy** if not running
 6. Generates Caddy reverse proxy configuration
 7. Registers project in global registry
-
-**Important**: This does NOT start your project containers. Run `docker compose up -d` separately.
+8. **Starts containers** (`docker compose up -d`)
 
 **Example Output:**
 
@@ -330,27 +325,43 @@ omd up
 ✓ Caddy configuration generated
 ✓ Project my-api is configured!
 
-Next steps:
-  1. Run docker compose up -d to start your services
-  2. Access your project at: https://my-api.local
+ℹ Starting containers...
+✓ Containers started successfully
+
+Access your project at: https://my-api.local
 ```
 
 ### omd project down
 
-Remove project configuration (run from project directory).
+Stop containers (run from project directory).
 
 ```bash
 cd /path/to/project
-omd down
+omd project down
 ```
 
 **What it does:**
 1. Reads `omd.toml` from current directory
-2. Removes Caddy configuration
-3. Unregisters project from global registry
-4. Reloads Caddy
+2. Stops containers (`docker compose down`)
 
-**Important**: This does NOT stop containers. Run `docker compose down` separately.
+**Note**: This only stops containers. Configuration remains intact. Use `omd project remove` to also remove configuration.
+
+### omd project remove
+
+Stop containers and remove all project configuration (run from project directory).
+
+```bash
+cd /path/to/project
+omd project remove
+```
+
+**What it does:**
+1. Reads `omd.toml` from current directory
+2. Stops containers (`docker compose down`)
+3. Removes Caddy configuration
+4. Unregisters project from global registry
+5. Removes domains from `/etc/hosts`
+6. Reloads Caddy
 
 ### omd project list
 
@@ -607,15 +618,13 @@ You can run multiple projects simultaneously as long as they don't have port con
 # Project 1
 cd ~/projects/api-service
 omd init
-omd up
-docker compose up -d
+omd project up
 # Access at https://api-service.local
 
 # Project 2
 cd ~/projects/web-app
 omd init
-omd up
-docker compose up -d
+omd project up
 # Access at https://web-app.local
 ```
 
@@ -783,23 +792,21 @@ domain = "my-awesome-app.local"
 name = "my-awesome-app-net"
 ```
 
-### 5. Check Before Starting
+### 5. Use omd project up
 
-Always run `omd up` before `docker compose up -d`:
+Use `omd project up` to configure and start your project in one command:
 
 ```bash
-omd up           # Configure infrastructure
-docker compose up -d  # Start containers
+omd project up   # Configure infrastructure and start containers
 ```
 
 ### 6. Clean Up After Deletion
 
-When deleting a project, run `omd down` first:
+When deleting a project, use `omd project remove`:
 
 ```bash
 cd /path/to/project
-docker compose down  # Stop containers
-omd down             # Remove configuration
+omd project remove   # Stop containers and remove configuration
 cd ..
 rm -rf project       # Delete directory
 ```
@@ -842,7 +849,7 @@ Periodically review registered projects:
 omd project list
 ```
 
-Remove stale entries with `omd down`.
+Remove stale entries with `omd project remove`.
 
 ---
 

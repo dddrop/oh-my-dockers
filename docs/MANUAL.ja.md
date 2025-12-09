@@ -80,13 +80,10 @@ omd init
 # 3. docker-compose.yml が存在することを確認
 # （既存の docker-compose.yml ファイル）
 
-# 4. インフラストラクチャを設定（ネットワーク、Caddy など）
-omd up
+# 4. インフラストラクチャを設定してコンテナを起動
+omd project up
 
-# 5. コンテナを起動
-docker compose up -d
-
-# 6. サービスにアクセス
+# 5. サービスにアクセス
 # https://your-project.local
 ```
 
@@ -131,17 +128,16 @@ networks:
   my-api-net:
 EOF
 
-# インフラストラクチャを設定
-omd up
+# インフラストラクチャを設定してコンテナを起動
+omd project up
 # ℹ docker-compose.yml を解析中...
 # ℹ ホストポートを検出: 5432, 3000
 # ✓ ポート競合なし
 # ✓ ネットワークを作成
 # ✓ Caddy 設定を生成
 # ✓ プロジェクト my-api を設定完了！
-
-# サービスを起動
-docker compose up -d
+# ℹ コンテナを起動中...
+# ✓ コンテナが正常に起動しました
 
 # https://api.my-api.local でアクセス可能
 ```
@@ -213,11 +209,11 @@ omd init
 
 ### omd project up
 
-プロジェクトのインフラストラクチャを設定します（プロジェクトディレクトリから実行）。
+プロジェクトのインフラストラクチャを設定してコンテナを起動します（プロジェクトディレクトリから実行）。
 
 ```bash
 cd /path/to/project
-omd up
+omd project up
 ```
 
 **実行内容：**
@@ -228,25 +224,39 @@ omd up
 5. **Caddy が起動していない場合は自動的に起動**
 6. Caddy リバースプロキシ設定を生成
 7. グローバルレジストリにプロジェクトを登録
-
-**重要**: これはプロジェクトのコンテナを起動しません。`docker compose up -d` を別途実行してください。
+8. **コンテナを起動**（`docker compose up -d`）
 
 ### omd project down
 
-プロジェクト設定を削除します（プロジェクトディレクトリから実行）。
+コンテナを停止します（プロジェクトディレクトリから実行）。
 
 ```bash
 cd /path/to/project
-omd down
+omd project down
 ```
 
 **実行内容：**
 1. 現在のディレクトリから `omd.toml` を読み取り
-2. Caddy 設定を削除
-3. グローバルレジストリからプロジェクトを登録解除
-4. Caddy をリロード
+2. コンテナを停止（`docker compose down`）
 
-**重要**: これはコンテナを停止しません。`docker compose down` を別途実行してください。
+**注意**: これはコンテナのみを停止します。設定はそのまま残ります。設定も削除するには `omd project remove` を使用してください。
+
+### omd project remove
+
+コンテナを停止してすべてのプロジェクト設定を削除します（プロジェクトディレクトリから実行）。
+
+```bash
+cd /path/to/project
+omd project remove
+```
+
+**実行内容：**
+1. 現在のディレクトリから `omd.toml` を読み取り
+2. コンテナを停止（`docker compose down`）
+3. Caddy 設定を削除
+4. グローバルレジストリからプロジェクトを登録解除
+5. `/etc/hosts` からドメインを削除
+6. Caddy をリロード
 
 ### omd project list
 
@@ -455,15 +465,13 @@ services:
 # プロジェクト 1
 cd ~/projects/api-service
 omd init
-omd up
-docker compose up -d
+omd project up
 # https://api-service.local でアクセス
 
 # プロジェクト 2
 cd ~/projects/web-app
 omd init
-omd up
-docker compose up -d
+omd project up
 # https://web-app.local でアクセス
 ```
 
@@ -553,23 +561,21 @@ domain = "my-awesome-app.local"
 name = "my-awesome-app-net"
 ```
 
-### 5. 起動前に確認
+### 5. omd project up を使用
 
-`docker compose up -d` の前に必ず `omd up` を実行：
+`omd project up` を使用して、1つのコマンドでプロジェクトを設定して起動：
 
 ```bash
-omd up              # インフラストラクチャを設定
-docker compose up -d     # コンテナを起動
+omd project up   # インフラストラクチャを設定してコンテナを起動
 ```
 
 ### 6. 削除後のクリーンアップ
 
-プロジェクトを削除する場合は、まず `omd down` を実行：
+プロジェクトを削除する場合は、`omd project remove` を使用：
 
 ```bash
 cd /path/to/project
-docker compose down  # コンテナを停止
-omd down             # 設定を削除
+omd project remove   # コンテナを停止して設定を削除
 cd ..
 rm -rf project       # ディレクトリを削除
 ```
