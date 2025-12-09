@@ -29,7 +29,7 @@ pub fn list() -> Result<()> {
         println!("To register a project:");
         println!("  1. Navigate to your project directory");
         println!("  2. Run {}", "omd init".bright_white());
-        println!("  3. Run {}", "omd up".bright_white());
+        println!("  3. Run {}", "omd project up".bright_white());
         return Ok(());
     }
 
