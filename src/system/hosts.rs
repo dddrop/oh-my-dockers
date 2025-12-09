@@ -310,6 +310,30 @@ pub fn add_project_domains(project_name: &str, domains: &[String]) -> Result<()>
         domains_to_add.push(domain.clone());
     }
 
+    // Check if the hosts file already has the exact same entries for this project
+    if let Some(existing) = sections.get(project_name) {
+        let existing_set: HashSet<&String> = existing.domains.iter().collect();
+        let new_set: HashSet<&String> = domains_to_add.iter().collect();
+
+        if existing_set == new_set {
+            // No changes needed
+            println!(
+                "{} /etc/hosts already up to date for project {}",
+                "✓".green(),
+                project_name.bright_white()
+            );
+            return Ok(());
+        }
+    } else if domains_to_add.is_empty() {
+        // No existing section and no domains to add
+        println!(
+            "{} No domains to add to /etc/hosts for project {}",
+            "ℹ".blue(),
+            project_name.bright_white()
+        );
+        return Ok(());
+    }
+
     // Show existing entries for this project
     if let Some(existing) = sections.get(project_name) {
         println!();
