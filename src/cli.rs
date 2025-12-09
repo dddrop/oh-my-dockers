@@ -89,7 +89,7 @@ pub enum ProxyCommands {
 pub enum ProjectCommands {
     /// List all registered projects
     List,
-    /// Configure project (run from project directory)
+    /// Configure project and start containers (run from project directory)
     Up,
     /// Remove project configuration (run from project directory)
     Down,

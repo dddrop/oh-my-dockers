@@ -2,7 +2,7 @@
 //!
 //! This module contains the main project management commands.
 
-use std::{env, fs};
+use std::{env, fs, process::Command};
 
 use anyhow::{Context, Result};
 use colored::Colorize;
@@ -196,14 +196,31 @@ pub fn up() -> Result<()> {
         "✓".green(),
         config.project.name.bright_white()
     );
+
+    // Start containers
     println!();
-    println!("Next steps:");
+    println!("{} Starting containers...", "ℹ".blue());
+
+    let compose_file = &config.project.compose_file;
+    let status = Command::new("docker")
+        .args(["compose", "-f", compose_file, "up", "-d"])
+        .current_dir(&current_dir)
+        .status()
+        .context("Failed to execute docker compose")?;
+
+    if status.success() {
+        println!("{} Containers started successfully", "✓".green());
+    } else {
+        println!(
+            "{} Failed to start containers (exit code: {:?})",
+            "✗".red(),
+            status.code()
+        );
+    }
+
+    println!();
     println!(
-        "  1. Run {} to start your services",
-        "docker compose up -d".bright_white()
-    );
-    println!(
-        "  2. Access your project at: https://{}",
+        "Access your project at: https://{}",
         config.project.domain
     );
     if !config.caddy.routes.is_empty() {
