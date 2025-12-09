@@ -178,21 +178,13 @@ routes = {}
     if !compose_created && !compose_path.exists() {
         println!("  1. Create your docker-compose.yml");
         println!(
-            "  2. Run {} to configure Caddy and check for port conflicts",
+            "  2. Run {} to configure and start your services",
             "omd project up".bright_white()
-        );
-        println!(
-            "  3. Run {} to start your services",
-            "docker compose up -d".bright_white()
         );
     } else {
         println!(
-            "  1. Run {} to configure Caddy and check for port conflicts",
+            "  1. Run {} to configure and start your services",
             "omd project up".bright_white()
-        );
-        println!(
-            "  2. Run {} to start your services",
-            "docker compose up -d".bright_white()
         );
     }
 
