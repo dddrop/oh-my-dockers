@@ -234,12 +234,13 @@ pub fn up() -> Result<()> {
     Ok(())
 }
 
-/// Remove project configuration (run from project directory)
+/// Stop containers (run from project directory)
 pub fn down() -> Result<()> {
-    println!("{}", "Removing project configuration...".blue());
+    println!("{}", "Stopping containers...".blue());
 
     // Load project configuration
     let config = load_project_config()?;
+    let current_dir = env::current_dir().context("Failed to get current directory")?;
 
     println!(
         "{} Project: {}",
@@ -247,7 +248,64 @@ pub fn down() -> Result<()> {
         config.project.name.bright_white()
     );
 
+    // Stop containers
+    let compose_file = &config.project.compose_file;
+    let status = Command::new("docker")
+        .args(["compose", "-f", compose_file, "down"])
+        .current_dir(&current_dir)
+        .status()
+        .context("Failed to execute docker compose")?;
+
+    if status.success() {
+        println!("{} Containers stopped successfully", "✓".green());
+    } else {
+        println!(
+            "{} Failed to stop containers (exit code: {:?})",
+            "✗".red(),
+            status.code()
+        );
+    }
+
+    Ok(())
+}
+
+/// Stop containers and remove all project configuration (run from project directory)
+pub fn remove() -> Result<()> {
+    println!("{}", "Removing project...".blue());
+
+    // Load project configuration
+    let config = load_project_config()?;
+    let current_dir = env::current_dir().context("Failed to get current directory")?;
+
+    println!(
+        "{} Project: {}",
+        "ℹ".blue(),
+        config.project.name.bright_white()
+    );
+
+    // Stop containers first
+    println!();
+    println!("{} Stopping containers...", "ℹ".blue());
+    let compose_file = &config.project.compose_file;
+    let status = Command::new("docker")
+        .args(["compose", "-f", compose_file, "down"])
+        .current_dir(&current_dir)
+        .status()
+        .context("Failed to execute docker compose")?;
+
+    if status.success() {
+        println!("{} Containers stopped successfully", "✓".green());
+    } else {
+        println!(
+            "{} Failed to stop containers (exit code: {:?})",
+            "✗".red(),
+            status.code()
+        );
+    }
+
     // Remove Caddy configuration
+    println!();
+    println!("{} Removing configuration...", "ℹ".blue());
     let config_dir = get_config_dir()?;
     let global_config = load_global_config()?;
     let caddy_config = config_dir
@@ -280,13 +338,10 @@ pub fn down() -> Result<()> {
 
     println!();
     println!(
-        "{} Project {} configuration removed",
+        "{} Project {} removed",
         "✓".green(),
         config.project.name.bright_white()
     );
-    println!();
-    println!("Note: Docker containers are still running.");
-    println!("Run {} to stop them.", "docker compose down".bright_white());
 
     Ok(())
 }

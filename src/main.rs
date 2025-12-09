@@ -82,6 +82,9 @@ fn main() -> Result<()> {
             ProjectCommands::Down => {
                 project::commands::down()?;
             }
+            ProjectCommands::Remove => {
+                project::commands::remove()?;
+            }
         },
         Commands::Hosts { subcommand } => match subcommand {
             HostsCommands::List => {

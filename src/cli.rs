@@ -91,8 +91,10 @@ pub enum ProjectCommands {
     List,
     /// Configure project and start containers (run from project directory)
     Up,
-    /// Remove project configuration (run from project directory)
+    /// Stop containers (run from project directory)
     Down,
+    /// Stop containers and remove all project configuration (run from project directory)
+    Remove,
 }
 
 #[derive(Subcommand)]
