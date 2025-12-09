@@ -5,7 +5,7 @@
 //! conflict detection.
 
 use anyhow::Result;
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 
 mod caddy;
 mod cli;
@@ -25,7 +25,16 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    match cli.command {
+    let command = match cli.command {
+        Some(cmd) => cmd,
+        None => {
+            // No subcommand provided, show help
+            Cli::command().print_help()?;
+            return Ok(());
+        }
+    };
+
+    match command {
         Commands::Init => {
             project::init::init()?;
         }
