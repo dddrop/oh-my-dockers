@@ -90,6 +90,9 @@ fn main() -> Result<()> {
             HostsCommands::List => {
                 system::hosts::list_managed_domains()?;
             }
+            HostsCommands::Cleanup => {
+                system::hosts::cleanup_all_domains()?;
+            }
         },
     }
 

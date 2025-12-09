@@ -101,4 +101,6 @@ pub enum ProjectCommands {
 pub enum HostsCommands {
     /// List all domains managed by oh-my-dockers
     List,
+    /// Remove all oh-my-dockers managed entries from /etc/hosts
+    Cleanup,
 }
