@@ -38,7 +38,7 @@ pub const AVAILABLE_SERVICES: &[ServiceTemplate] = &[
             ("POSTGRES_PASSWORD", "postgres"),
             ("POSTGRES_DB", "app"),
         ],
-        volumes: &["postgres_data:/var/lib/postgresql/data"],
+        volumes: &["postgres_data:/var/lib/postgresql"],
     },
     // Redis
     ServiceTemplate {
