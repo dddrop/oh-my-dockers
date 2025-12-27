@@ -230,6 +230,8 @@ pub fn start() -> Result<()> {
             "443:443",
             "-p",
             "443:443/udp",
+            "-p",
+            "2019:2019",
             "-v",
             &format!("{}:/etc/caddy/Caddyfile:ro", caddyfile_path.display()),
             "-v",
