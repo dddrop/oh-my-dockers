@@ -42,8 +42,12 @@ pub struct NetworkConfig {
 
 /// Caddy configuration for the project
 #[derive(Debug, Deserialize, Serialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct CaddyConfig {
     /// Custom routes mapping: subdomain/path -> container:port
+    /// Use [caddy.routes] section in TOML:
+    ///   [caddy.routes]
+    ///   api = "bff:8080"
     #[serde(default)]
     pub routes: HashMap<String, String>,
 }
@@ -78,4 +82,54 @@ pub fn get_current_dir_name() -> Result<String> {
         .to_string();
 
     Ok(dir_name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_caddy_routes_correct_format() {
+        // Correct format: [caddy.routes]
+        let toml_str = r#"
+[project]
+name = "sapphire"
+domain = "sapphire.local"
+
+[network]
+name = "sapphire-net"
+
+[caddy.routes]
+api = "bff:8080"
+"#;
+        let config: ProjectConfig = toml::from_str(toml_str).unwrap();
+        println!("Correct format - Routes: {:?}", config.caddy.routes);
+        
+        assert!(!config.caddy.routes.is_empty(), "Routes should not be empty");
+        assert_eq!(config.caddy.routes.get("api"), Some(&"bff:8080".to_string()));
+    }
+
+    #[test]
+    fn test_parse_caddy_routes_wrong_format() {
+        // Wrong format: [caddy] with direct key
+        // With deny_unknown_fields, this should fail with a clear error
+        let toml_str = r#"
+[project]
+name = "sapphire"
+domain = "sapphire.local"
+
+[network]
+name = "sapphire-net"
+
+[caddy]
+api = "bff:8080"
+"#;
+        let result: Result<ProjectConfig, _> = toml::from_str(toml_str);
+        println!("Wrong format result: {:?}", result);
+        
+        // Should fail with unknown field error, guiding user to correct format
+        assert!(result.is_err(), "Should fail with unknown field 'api'");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("unknown field"), "Error should mention unknown field");
+    }
 }

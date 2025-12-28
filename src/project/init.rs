@@ -155,14 +155,14 @@ name = "{}"
     if configure_routes {
         config_content.push_str(
             r#"
-[caddy]
 # Custom Caddy routes
 # Format: subdomain = "container_name:port"
 # Example:
+#   [caddy.routes]
 #   api = "backend:3000"
 #   app = "frontend:80"
 #   admin = "admin:8080"
-routes = {}
+[caddy.routes]
 "#,
         );
     }
