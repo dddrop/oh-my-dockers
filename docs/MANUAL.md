@@ -485,9 +485,11 @@ domain = "my-project.local"
 # Docker network name for this project
 name = "my-project-net"
 
-[caddy]
 # Custom Caddy routes (optional)
-routes = {}
+# Format: subdomain = "container_name:port"
+[caddy.routes]
+# api = "backend:3000"
+# app = "frontend:80"
 ```
 
 ### Configuration Fields

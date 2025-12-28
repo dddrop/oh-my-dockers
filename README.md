@@ -152,15 +152,12 @@ domain = "my-project.local"
 # Docker network name for this project
 name = "my-project-net"
 
-[caddy]
 # Custom Caddy routes (optional)
 # If not specified, routes are auto-generated from docker-compose.yml
-routes = {}
-
-# Or specify custom routes:
-# [caddy.routes]
-# api = "backend-container:3000"
-# app = "frontend-container:80"
+# Format: subdomain = "container_name:port"
+[caddy.routes]
+api = "backend-container:3000"
+app = "frontend-container:80"
 ```
 
 ## Commands
