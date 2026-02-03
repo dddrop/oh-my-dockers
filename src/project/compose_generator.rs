@@ -192,8 +192,11 @@ pub fn generate_compose_content(
         }
     }
 
-    // Generate networks section
-    content.push_str(&format!("\nnetworks:\n  {}:\n", network_name));
+    // Generate networks section (external: true to use pre-created network)
+    content.push_str(&format!(
+        "\nnetworks:\n  {}:\n    external: true\n",
+        network_name
+    ));
 
     content
 }
@@ -288,5 +291,19 @@ mod tests {
         assert!(content.contains("myproject-postgres"));
         assert!(content.contains("5432:5432"));
         assert!(content.contains("POSTGRES_USER"));
+    }
+
+    #[test]
+    fn test_generate_compose_content_network_external() {
+        let services = vec![SelectedService {
+            template: &AVAILABLE_SERVICES[0],
+            host_port: 5432,
+        }];
+
+        let content = generate_compose_content("myproject", "myproject-net", &services);
+
+        // Verify network is marked as external
+        assert!(content.contains("external: true"));
+        assert!(content.contains("myproject-net:"));
     }
 }

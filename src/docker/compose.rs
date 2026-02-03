@@ -209,6 +209,53 @@ impl ComposeInfo {
     }
 }
 
+/// Ensure the network in docker-compose.yml is marked as external.
+/// This prevents Docker Compose from creating a new network with a project prefix.
+pub fn ensure_network_external(path: &Path, network_name: &str) -> Result<bool> {
+    let content = fs::read_to_string(path)
+        .context(format!("Failed to read docker-compose file: {:?}", path))?;
+
+    let mut yaml: Value =
+        serde_yaml::from_str(&content).context("Failed to parse docker-compose YAML")?;
+
+    let mut modified = false;
+
+    if let Some(networks) = yaml.get_mut("networks").and_then(|v| v.as_mapping_mut()) {
+        let network_key = Value::String(network_name.to_string());
+
+        if let Some(network_config) = networks.get_mut(&network_key) {
+            let external_key = Value::String("external".to_string());
+
+            // Check if external is already set to true
+            let is_external = network_config
+                .get(&external_key)
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            if !is_external {
+                // Convert null/empty to mapping if needed
+                if network_config.is_null() {
+                    *network_config = Value::Mapping(serde_yaml::Mapping::new());
+                }
+
+                if let Some(mapping) = network_config.as_mapping_mut() {
+                    mapping.insert(external_key, Value::Bool(true));
+                    modified = true;
+                }
+            }
+        }
+    }
+
+    if modified {
+        let new_content =
+            serde_yaml::to_string(&yaml).context("Failed to serialize docker-compose YAML")?;
+        fs::write(path, new_content)
+            .context(format!("Failed to write docker-compose file: {:?}", path))?;
+    }
+
+    Ok(modified)
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Write;
@@ -299,5 +346,68 @@ services:
 
         assert_eq!(app.host_ports, vec![8080]);
         assert_eq!(app.container_ports, vec![80]);
+    }
+
+    #[test]
+    fn test_ensure_network_external_updates_non_external() {
+        let yaml = r#"
+services:
+  app:
+    image: app:latest
+    networks:
+      - mynet
+
+networks:
+  mynet:
+"#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(yaml.as_bytes()).unwrap();
+
+        let modified = ensure_network_external(file.path(), "mynet").unwrap();
+        assert!(modified);
+
+        // Verify the file was updated
+        let content = std::fs::read_to_string(file.path()).unwrap();
+        assert!(content.contains("external: true") || content.contains("external:true"));
+    }
+
+    #[test]
+    fn test_ensure_network_external_already_external() {
+        let yaml = r#"
+services:
+  app:
+    image: app:latest
+    networks:
+      - mynet
+
+networks:
+  mynet:
+    external: true
+"#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(yaml.as_bytes()).unwrap();
+
+        let modified = ensure_network_external(file.path(), "mynet").unwrap();
+        assert!(!modified);
+    }
+
+    #[test]
+    fn test_ensure_network_external_unknown_network() {
+        let yaml = r#"
+services:
+  app:
+    image: app:latest
+
+networks:
+  other-net:
+"#;
+
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(yaml.as_bytes()).unwrap();
+
+        let modified = ensure_network_external(file.path(), "mynet").unwrap();
+        assert!(!modified);
     }
 }

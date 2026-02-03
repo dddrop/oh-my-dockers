@@ -11,7 +11,7 @@ use super::config::load_project_config;
 use super::registry::{PortRegistry, ProjectEntry};
 use crate::caddy;
 use crate::config::{get_config_dir, load_global_config};
-use crate::docker::compose::ComposeInfo;
+use crate::docker::compose::{ensure_network_external, ComposeInfo};
 use crate::docker::network::{connect_caddy_to_network, ensure_network};
 use crate::system::hosts;
 
@@ -80,6 +80,15 @@ pub fn up() -> Result<()> {
     // Parse docker-compose file
     println!("{} Parsing {}...", "ℹ".blue(), config.project.compose_file);
     let compose_info = ComposeInfo::parse(&compose_path)?;
+
+    // Ensure network is marked as external in docker-compose.yml
+    if ensure_network_external(&compose_path, &config.network.name)? {
+        println!(
+            "{} Updated {} to use external network",
+            "✓".green(),
+            config.project.compose_file
+        );
+    }
 
     // Get all host ports
     let host_ports = compose_info.get_all_host_ports();
